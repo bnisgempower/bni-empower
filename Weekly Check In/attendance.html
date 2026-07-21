@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#c0392b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BNI Sign-In">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <title>BNI Empower — Meeting Sign-In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <style>
+    :root {
+      --gold:        #c0392b;
+      --gold-bright: #daa94d;
+      --gold-dim:    rgba(200,151,58,.12);
+      --gold-border: rgba(200,151,58,.35);
+      --bg:          #0d0d0d;
+      --bg2:         #141414;
+      --surface:     #1c1c1c;
+      --border:      #2e2e2e;
+      --text:        #f0ede8;
+      --text-muted:  #888;
+      --text-dim:    #4a4a4a;
+      --success:     #5cc976;
+      --danger:      #e05c5c;
+      --r-sm:        8px;
+      --r:           14px;
+      --tr:          220ms ease;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ── Header ──────────────────────────────────── */
+    .header {
+      width: 100%;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 13px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .hd-left { display: flex; align-items: center; gap: 11px; }
+    .logo-mark {
+      width: 34px; height: 34px;
+      background: var(--gold);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 17px; color: #000; flex-shrink: 0;
+    }
+    .hd-title  { font-size: 15px; font-weight: 700; line-height: 1.2; }
+    .hd-sub    { font-size: 11px; color: var(--text-muted); }
+    .qr-toggle-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 13px;
+      color: var(--text-muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px; font-weight: 600;
+      cursor: pointer;
+      transition: all var(--tr);
+      white-space: nowrap;
+    }
+    .qr-toggle-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+    /* ── Container ───────────────────────────────── */
+    .container {
+      width: 100%;
+      max-width: 640px;
+      padding: 0 18px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Meeting banner ──────────────────────────── */
+    .meeting-banner {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r);
+      padding: 14px 16px;
+      margin: 18px 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .meeting-date { font-size: 15px; font-weight: 700; }
+    .meeting-chapter { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .starts-chip {
+      background: var(--gold-dim);
+      border: 1px solid var(--gold-border);
+      border-radius: 20px;
+      padding: 5px 11px;
+      font-size: 12px; font-weight: 700;
+      color: var(--gold);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    /* ── Live clock ──────────────────────────────── */
+    .clock-wrap {
+      text-align: center;
+      margin-bottom: 26px;
+    }
+    .clock-time {
+      font-size: 58px; font-weight: 700;
+      letter-spacing: -2px; line-height: 1;
+      color: var(--text);
+    }
+    .clock-pill {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 13px; font-weight: 700;
+    }
+    .clock-pill.good { background: rgba(92,201,118,.12); color: var(--success); }
+    .clock-pill.late { background: rgba(224,92,92,.12);  color: var(--danger); }
+
+    /* ── Name grid ───────────────────────────────── */
+    .grid-label {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    .name-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .name-btn {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-sm);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px; font-weight: 600;
+      padding: 14px 8px;
+      cursor: pointer;
+      text-align: center;
+      line-height: 1.3;
+      transition: all var(--tr);
+      -webkit-tap-highlight-color: transparent;
+      word-break: break-word;
+    }
+    .name-btn:hover  { border-color: var(--gold); background: var(--gold-dim); }
+    .name-btn:active { transform: scale(.95); background: var(--gold); color: #000; }
+    .name-btn.signed { background: rgba(92,201,118,.12); border-color: rgba(92,201,118,.4); color: var(--success); cursor: default; }
+    .name-btn.signed:active { transform: none; }
+
+    /* ── Buttons ─────────────────────────────────── */
+    .btn {
+      width: 100%; padding: 18px;
+      border-radius: var(--r-sm);
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 17px; font-weight: 700;
+      cursor: pointer;
+      transition: all var(--tr);
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: var(--gold); color: #000; margin-bottom: 10px; }
+    .btn-primary:hover { background: var(--gold-bright); }
+    .btn-primary:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1.5px solid var(--border);
+      font-size: 15px; padding: 14px;
+    }
+    .btn-ghost:hover { background: var(--surface); }
+
+    /* ── Success view ────────────────────────────── */
+    .success-view {
+      flex: 1;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: flex-start;
+      text-align: center;
+      padding: 32px 20px 24px;
+      overflow-y: auto;
+    }
+    .s-emoji    { font-size: 84px; line-height: 1; margin-bottom: 18px; }
+    .s-greeting { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+    .s-time     { font-size: 16px; color: var(--text-muted); margin-bottom: 18px; }
+    .s-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 20px;
+      border-radius: 24px;
+      font-size: 13px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: .07em;
+      margin-bottom: 8px;
+    }
+    .s-badge.present { background: rgba(92,201,118,.15); color: var(--success); border: 1px solid rgba(92,201,118,.3); }
+    .s-badge.late    { background: rgba(224,92,92,.15);  color: var(--danger);  border: 1px solid rgba(224,92,92,.3); }
+    .s-late-detail { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
+
+    /* Auto-reset progress bar */
+    .reset-track { width: 100%; height: 3px; background: var(--border); border-radius: 3px; margin-bottom: 20px; }
+    .reset-fill  { height: 3px; background: var(--gold); border-radius: 3px; width: 100%; }
+
+    /* ── Roster section (inside success view) ────── */
+    .roster-wrap {
+      width: 100%;
+      margin-top: 18px;
+      text-align: left;
+    }
+    .roster-counts {
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+    .roster-counts strong { color: var(--text); }
+    .roster-divider {
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .07em;
+      color: var(--text-dim);
+      margin: 10px 0 6px;
+    }
+    .roster-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+    .roster-chip {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px; font-weight: 600;
+    }
+    .roster-chip.here { background: rgba(92,201,118,.12); color: var(--success); }
+    .roster-chip.away { background: var(--surface); color: var(--text-muted); border: 1px solid var(--border); }
+
+    /* ── QR view ─────────────────────────────────── */
+    .qr-view {
+      flex: 1;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: 28px 20px;
+    }
+    .qr-heading { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .qr-sub { font-size: 14px; color: var(--text-muted); line-height: 1.55; margin-bottom: 24px; }
+    .qr-frame {
+      background: #fff;
+      border-radius: 18px;
+      padding: 18px;
+      margin-bottom: 14px;
+      box-shadow: 0 0 0 1px rgba(255,255,255,.08);
+    }
+    .qr-url {
+      font-size: 11px; color: var(--text-dim);
+      margin-bottom: 24px;
+      word-break: break-all;
+      max-width: 300px;
+    }
+
+    /* ── Loading ─────────────────────────────────── */
+    .loading-view {
+      flex: 1;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px;
+    }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── NFC confirm view ────────────────────────── */
+    .nfc-view {
+      flex: 1;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 28px 20px;
+      text-align: center;
+    }
+    .nfc-hello {
+      font-size: 15px; color: var(--text-muted);
+      font-weight: 500; margin-bottom: 6px;
+    }
+    .nfc-name {
+      font-size: 36px; font-weight: 800;
+      color: var(--text);
+      line-height: 1.1; margin-bottom: 6px;
+    }
+    .nfc-tag-label {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--gold-dim);
+      border: 1px solid var(--gold-border);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 11px; font-weight: 700;
+      color: var(--gold);
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+    .nfc-time-line {
+      font-size: 14px; color: var(--text-muted);
+      margin-bottom: 28px;
+    }
+    .nfc-time-line strong { color: var(--text); }
+    .btn-nfc {
+      width: 100%; padding: 22px;
+      border-radius: var(--r);
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 20px; font-weight: 800;
+      cursor: pointer;
+      background: var(--gold); color: #000;
+      transition: all var(--tr);
+      margin-bottom: 14px;
+      letter-spacing: .01em;
+    }
+    .btn-nfc:active { transform: scale(.97); background: var(--gold-bright); }
+    .nfc-not-me {
+      background: none; border: none;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px; color: var(--text-dim);
+      cursor: pointer; text-decoration: underline;
+      padding: 8px;
+    }
+
+    /* ── Confirm modal ───────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 32px 24px 24px;
+      max-width: 340px;
+      width: 100%;
+      text-align: center;
+      animation: popIn .18s ease;
+    }
+    @keyframes popIn {
+      from { transform: scale(.92); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+    .modal-name {
+      font-size: 26px; font-weight: 800;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    .modal-time {
+      font-size: 14px; color: var(--text-muted);
+      margin-bottom: 28px;
+    }
+    .modal-btns {
+      display: flex;
+      gap: 12px;
+    }
+    .modal-btn {
+      flex: 1;
+      padding: 18px;
+      border-radius: 12px;
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 28px;
+      cursor: pointer;
+      transition: all var(--tr);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .modal-btn:active { transform: scale(.94); }
+    .modal-confirm { background: #27ae60; color: #fff; }
+    .modal-confirm:hover { background: #219a52; }
+    .modal-cancel  { background: #e05c5c; color: #fff; border: none; }
+    .modal-cancel:hover { background: #c94444; }
+
+    [hidden] { display: none !important; }
+
+    /* ── Admin mode ──────────────────────────────── */
+    .admin-banner {
+      background: rgba(192,57,43,.12);
+      border: 1.5px solid rgba(192,57,43,.35);
+      border-radius: var(--r);
+      padding: 12px 16px;
+      margin: 18px 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .admin-banner-lbl { font-size: 13px; font-weight: 700; color: var(--gold); }
+    .admin-banner-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .admin-toolbar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .admin-tool-btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: var(--r-sm);
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px; font-weight: 600;
+      cursor: pointer;
+      transition: all var(--tr);
+    }
+    .admin-tool-btn:hover { border-color: var(--gold); color: var(--gold); }
+    /* Status colours on admin name buttons */
+    .name-btn.adm-present { background: rgba(92,201,118,.15); border-color: rgba(92,201,118,.5); color: var(--success); }
+    .name-btn.adm-absent  { background: rgba(224,92,92,.15);  border-color: rgba(224,92,92,.5);  color: var(--danger); }
+    .name-btn.adm-sub     { background: rgba(255,153,0,.15);  border-color: rgba(255,153,0,.5);  color: #ff9900; }
+    .admin-status {
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-muted);
+      min-height: 22px;
+      margin-bottom: 10px;
+    }
+    /* Status picker popup */
+    .status-picker {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.65);
+      z-index: 200;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .status-picker.open { display: flex; }
+    .status-picker-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px 18px 0 0;
+      padding: 20px 20px 32px;
+      width: 100%;
+      max-width: 480px;
+      animation: slideUp .18s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(40px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+    .picker-name {
+      font-size: 20px; font-weight: 800;
+      text-align: center; margin-bottom: 18px;
+    }
+    .picker-btns { display: flex; flex-direction: column; gap: 10px; }
+    .picker-btn {
+      padding: 16px;
+      border-radius: var(--r-sm);
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 16px; font-weight: 700;
+      cursor: pointer;
+      transition: all var(--tr);
+    }
+    .picker-btn:active { transform: scale(.97); }
+    .picker-present { background: rgba(92,201,118,.2);  color: var(--success); }
+    .picker-absent  { background: rgba(224,92,92,.2);   color: var(--danger); }
+    .picker-sub     { background: rgba(255,153,0,.2);   color: #ff9900; }
+    .picker-unmark  { background: rgba(224,92,92,.1); color: var(--danger); border: 1px solid rgba(224,92,92,.3); }
+    .picker-cancel  { background: var(--bg2); color: var(--text-muted); margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="hd-left">
+    <div class="logo-mark">B</div>
+    <div>
+      <div class="hd-title">BNI Empower</div>
+      <div class="hd-sub">Meeting Sign-In</div>
+    </div>
+  </div>
+  <button class="qr-toggle-btn" onclick="showQR()">📱 Show QR</button>
+</header>
+
+<div class="container">
+
+  <!-- ════════════════════════════════════════
+       SIGN-IN VIEW
+  ════════════════════════════════════════ -->
+  <div id="vSignin" hidden>
+
+    <div class="meeting-banner">
+      <div>
+        <div class="meeting-date" id="meetingDate">—</div>
+        <div class="meeting-chapter">BNI Empower Chapter</div>
+      </div>
+      <div class="starts-chip" id="startsChip">Starts 7:00 AM</div>
+    </div>
+
+    <div class="clock-wrap">
+      <div class="clock-time" id="clockTime">—</div>
+      <div class="clock-pill" id="clockPill"></div>
+    </div>
+
+    <div class="grid-label">Tap your name to sign in</div>
+    <div class="name-grid" id="nameGrid"></div>
+
+    <button class="btn btn-ghost" onclick="showQR()" style="margin-top:4px">
+      📱 Show QR code
+    </button>
+
+  </div>
+
+  <!-- ════════════════════════════════════════
+       NFC CONFIRM VIEW (shown when ?m= in URL)
+  ════════════════════════════════════════ -->
+  <div id="vNFC" hidden class="nfc-view">
+    <div class="nfc-hello">Good morning! 👋</div>
+    <div class="nfc-name" id="nfcName">—</div>
+    <div class="nfc-tag-label">🏷 NFC Tag</div>
+    <div class="nfc-time-line">
+      <span id="nfcTimeLine">Checking time…</span>
+    </div>
+    <button class="btn-nfc" id="nfcConfirmBtn" onclick="confirmNFC()">
+      ✓ &nbsp;I'm Here!
+    </button>
+    <button class="nfc-not-me" onclick="show('vSignin')">
+      Not me — sign in as someone else
+    </button>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       LOADING VIEW
+  ════════════════════════════════════════ -->
+  <div id="vLoading" hidden class="loading-view">
+    <div class="spinner"></div>
+    <p style="color:var(--text-muted);font-size:15px;">Recording sign-in…</p>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       SUCCESS VIEW
+  ════════════════════════════════════════ -->
+  <div id="vSuccess" hidden class="success-view">
+    <div class="s-emoji" id="sEmoji">✅</div>
+    <div class="s-greeting" id="sGreeting">Good morning!</div>
+    <div class="s-time" id="sTime">Signed in at 7:00 AM</div>
+    <div class="s-badge" id="sBadge">ON TIME</div>
+    <div class="s-late-detail" id="sLateDetail" hidden></div>
+
+    <!-- Roster snapshot -->
+    <div class="roster-wrap" id="rosterWrap" hidden>
+      <div style="display:flex;align-items:center;justify-content:center;gap:10px">
+        <div class="roster-counts" id="rosterCounts">Loading…</div>
+        <button onclick="fetchAndShowRoster()" style="background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;padding:2px 4px;" title="Refresh">↺</button>
+      </div>
+      <div class="roster-divider">In the room</div>
+      <div class="roster-chips" id="rosterHere"></div>
+      <div class="roster-divider" id="rosterNotYetLbl" hidden>Not yet</div>
+      <div class="roster-chips" id="rosterNotYet"></div>
+    </div>
+
+    <button class="btn btn-ghost" style="margin-top:20px" onclick="resetSignIn()">
+      ← Back to sign-in
+    </button>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       ADMIN VIEW
+  ════════════════════════════════════════ -->
+  <div id="vAdmin" hidden>
+
+    <div class="admin-banner">
+      <div>
+        <div class="admin-banner-lbl">🔑 Admin Mode</div>
+        <div class="admin-banner-sub">Tap a name to set their status</div>
+      </div>
+      <button class="qr-toggle-btn" onclick="exitAdmin()">Exit</button>
+    </div>
+
+    <div class="admin-toolbar">
+      <button class="admin-tool-btn" onclick="adminMarkAll('present')">All Present</button>
+      <button class="admin-tool-btn" onclick="adminClearAll()">Clear</button>
+    </div>
+
+    <div class="grid-label">✅ Present &nbsp;·&nbsp; ❌ Absent &nbsp;·&nbsp; 🔄 Sub Present</div>
+    <div class="name-grid" id="adminGrid"></div>
+
+    <div class="admin-status" id="adminStatus"></div>
+    <button class="btn btn-primary" id="adminSubmitBtn" onclick="submitAdminBatch()" disabled style="margin-bottom:10px">
+      Mark members first
+    </button>
+    <button class="btn btn-ghost" onclick="exitAdmin()">← Back to sign-in</button>
+
+  </div>
+
+  <!-- Status picker bottom sheet -->
+  <div class="status-picker" id="statusPicker">
+    <div class="status-picker-box">
+      <div class="picker-name" id="pickerName">—</div>
+      <div class="picker-btns">
+        <button class="picker-btn picker-present" onclick="setAdminStatus('present')">✅ &nbsp;Present</button>
+        <button class="picker-btn picker-absent"  onclick="setAdminStatus('absent')">❌ &nbsp;Absent</button>
+        <button class="picker-btn picker-sub"     onclick="setAdminStatus('sub')">🔄 &nbsp;Sub Present</button>
+        <button class="picker-btn picker-unmark"  id="pickerUnmark" onclick="setAdminStatus('unmark')" hidden>🗑 &nbsp;Remove sign-in</button>
+        <button class="picker-btn picker-cancel"  onclick="closePicker()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       QR VIEW
+  ════════════════════════════════════════ -->
+  <div id="vQR" hidden class="qr-view">
+    <div class="qr-heading">Scan to Sign In</div>
+    <div class="qr-sub">Open your phone camera<br>and point it at the code below</div>
+    <div class="qr-frame">
+      <canvas id="qrCanvas"></canvas>
+    </div>
+    <div class="qr-url" id="qrUrl"></div>
+    <button class="btn btn-ghost" onclick="hideQR()">← Back to sign-in</button>
+  </div>
+
+</div><!-- /container -->
+
+<!-- ── Confirm modal (outside container, fixed overlay) ── -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal-box">
+    <div class="modal-name" id="modalName">—</div>
+    <div class="modal-time" id="modalTime">—</div>
+    <div class="modal-btns">
+      <button class="modal-btn modal-cancel"  onclick="closeModal()">✕</button>
+      <button class="modal-btn modal-confirm" onclick="confirmModal()">✓</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── CONFIG ─────────────────────────────────────────────────
+// Same Apps Script URL as the weekly check-in form:
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxYCpexo7cuQwYMpBwLtVn48hEQAoz1PQw17INXwZpXz-nh7foLB4-8Dhct2a7yNE8lMg/exec';
+
+// Meeting start time — adjust to match your chapter schedule:
+const MEETING_H = 8;   // hour   (24-hr, so 8 = 8 AM)
+const MEETING_M = 0;   // minute
+
+// Members who can sign in — loaded from Active_Members sheet on init:
+let MEMBERS = [];
+
+// ── INIT ────────────────────────────────────────────────────
+let _signedNames = [];   // names signed in this session — persisted in localStorage
+
+(async function init() {
+  // Load roster from sheet
+  try {
+    const res = await fetch(APPS_SCRIPT_URL + '?action=getRoster');
+    const json = await res.json();
+    MEMBERS = json.members || [];
+  } catch (e) {
+    MEMBERS = [];
+  }
+
+  // Build name grid (sorted alphabetically by first name)
+  const grid = document.getElementById('nameGrid');
+  [...MEMBERS].sort().forEach(name => {
+    const btn = document.createElement('button');
+    btn.className   = 'name-btn';
+    btn.textContent = name;
+    btn.id          = 'mb-' + name.replace(/\s+/g, '-');
+    btn.onclick     = () => signIn(name);
+    grid.appendChild(btn);
+  });
+
+  // Restore signed-in state from localStorage (survives refresh on same device)
+  _signedNames = _loadSigned();
+  _signedNames.forEach(name => {
+    const btn = document.getElementById('mb-' + name.replace(/\s+/g, '-'));
+    if (btn) { btn.classList.add('signed'); btn.textContent = '✓ ' + name; }
+  });
+
+  // Sync from sheet — picks up sign-ins from other devices
+  syncGridFromSheet();
+
+  // Meeting date banner (next Monday, or today if it is Monday)
+  const meeting = nextTuesday();
+  document.getElementById('meetingDate').textContent =
+    meeting.toLocaleDateString('en-SG', {
+      weekday: 'long', day: 'numeric', month: 'short', year: 'numeric'
+    });
+  document.getElementById('startsChip').textContent =
+    `Starts ${fmt12(MEETING_H, MEETING_M)}`;
+
+  // Live clock
+  tick();
+  setInterval(tick, 1000);
+
+  // ── NFC: check URL for ?m=MemberName ──────────────
+  const param = new URLSearchParams(location.search).get('m');
+  if (param) {
+    // Match against roster (case-insensitive, trimmed)
+    const matched = MEMBERS.find(
+      n => n.toLowerCase() === param.trim().toLowerCase()
+    );
+    if (matched) {
+      setupNFCView(matched);
+      show('vNFC');
+      return;                      // skip normal sign-in view
+    }
+  }
+  // No NFC param — show normal view
+  show('vSignin');
+})();
+
+function nextTuesday() {
+  const d = new Date();
+  const diff = d.getDay() === 2 ? 0 : (9 - d.getDay()) % 7;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+function fmt12(h, m) {
+  const ampm = h < 12 ? 'AM' : 'PM';
+  const h12  = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+
+function tick() {
+  const now  = new Date();
+  const pill = document.getElementById('clockPill');
+
+  document.getElementById('clockTime').textContent =
+    now.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  // Only show late/early countdown on meeting day (Tuesday)
+  if (now.getDay() !== 2) {
+    const next = nextTuesday();
+    pill.textContent = 'Next meeting: ' + next.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
+    pill.className   = 'clock-pill good';
+    return;
+  }
+
+  const meetingStart = new Date(now);
+  meetingStart.setHours(MEETING_H, MEETING_M, 0, 0);
+  const diffMs   = now - meetingStart;
+  const isLate   = diffMs > 0;
+  const diffMins = Math.abs(Math.floor(diffMs / 60000));
+
+  if (isLate) {
+    pill.textContent = `${diffMins} min${diffMins !== 1 ? 's' : ''} past start`;
+    pill.className   = 'clock-pill late';
+  } else if (diffMins === 0) {
+    pill.textContent = 'Meeting starting now!';
+    pill.className   = 'clock-pill good';
+  } else {
+    pill.textContent = `${diffMins} min${diffMins !== 1 ? 's' : ''} to start`;
+    pill.className   = 'clock-pill good';
+  }
+}
+
+// ── NFC CONFIRM ─────────────────────────────────────────────
+let _nfcMember = '';
+
+function setupNFCView(name) {
+  _nfcMember = name;
+  document.getElementById('nfcName').textContent = name;
+
+  // Live time line updates every second
+  function updateNFCTime() {
+    const now   = new Date();
+    const start = new Date(nextTuesday());
+    start.setHours(MEETING_H, MEETING_M, 0, 0);
+    const isLate   = now > start;
+    const diffMins = Math.abs(Math.floor((now - start) / 60000));
+    const timeStr  = now.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const statusStr = isLate
+      ? `<strong style="color:var(--danger)">${diffMins} min${diffMins!==1?'s':''} late</strong>`
+      : diffMins === 0
+        ? `<strong style="color:var(--success)">Meeting starting now!</strong>`
+        : `<strong style="color:var(--success)">${diffMins} min${diffMins!==1?'s':''} to start</strong>`;
+    document.getElementById('nfcTimeLine').innerHTML = `${timeStr} · ${statusStr}`;
+  }
+  updateNFCTime();
+  setInterval(updateNFCTime, 1000);
+}
+
+async function confirmNFC() {
+  const btn = document.getElementById('nfcConfirmBtn');
+  btn.disabled = true;
+
+  const now      = new Date();
+  const start    = new Date(nextTuesday());
+  start.setHours(MEETING_H, MEETING_M, 0, 0);
+  const isLate   = now > start;
+  const lateMins = isLate ? Math.floor((now - start) / 60000) : 0;
+  const status   = isLate ? 'Late' : 'Present';
+  const signInTime = now.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const weekOf   = nextTuesday().toLocaleDateString('en-SG', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  show('vLoading');
+
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method:  'POST',
+      mode:    'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        formType:   'attendance',
+        source:     'nfc',
+        timestamp:  now.toISOString(),
+        weekOf,
+        memberName: _nfcMember,
+        status,
+        signInTime,
+        lateMins,
+      }),
+    });
+    if (!_signedNames.includes(_nfcMember)) { _signedNames.push(_nfcMember); _saveSigned(); }
+    showSuccess(_nfcMember, signInTime, status, lateMins);
+  } catch {
+    document.getElementById('nfcConfirmBtn').disabled = false;
+    show('vNFC');
+    alert('Network error — check connection and try again.');
+  }
+}
+
+// ── PERSISTENCE (localStorage) ───────────────────────────────
+// Keyed by meeting date so old data is silently ignored next week.
+function _attendanceKey() {
+  const t = nextTuesday();
+  const y = t.getFullYear();
+  const m = String(t.getMonth() + 1).padStart(2, '0');
+  const d = String(t.getDate()).padStart(2, '0');
+  return 'bni_signin_' + y + '-' + m + '-' + d;
+}
+
+function _loadSigned() {
+  try { return JSON.parse(localStorage.getItem(_attendanceKey()) || '[]'); } catch { return []; }
+}
+
+function _saveSigned() {
+  try { localStorage.setItem(_attendanceKey(), JSON.stringify(_signedNames)); } catch {}
+}
+
+// ── CONFIRM MODAL ────────────────────────────────────────────
+let _pendingName = '';
+
+function signIn(name) {
+  _pendingName = name;
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true });
+  document.getElementById('modalName').textContent = name;
+  document.getElementById('modalTime').textContent = 'Sign in at ' + timeStr + '?';
+  document.getElementById('confirmModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('confirmModal').classList.remove('open');
+  _pendingName = '';
+}
+
+// ── SIGN IN ─────────────────────────────────────────────────
+async function confirmModal() {
+  const name = _pendingName;
+  closeModal();
+  if (!name) return;
+
+  const btn = document.getElementById('mb-' + name.replace(/\s+/g, '-'));
+  if (btn) btn.disabled = true;
+
+  const now   = new Date();
+  const start = new Date(nextTuesday());
+  start.setHours(MEETING_H, MEETING_M, 0, 0);
+
+  const diffMs   = now - start;
+  const isLate   = diffMs > 0;
+  const lateMins = isLate ? Math.floor(diffMs / 60000) : 0;
+  const status   = isLate ? 'Late' : 'Present';
+  const signInTime = now.toLocaleTimeString('en-SG', {
+    hour: '2-digit', minute: '2-digit', hour12: true
+  });
+  const weekOf = nextTuesday().toLocaleDateString('en-SG', {
+    day: '2-digit', month: 'short', year: 'numeric'
+  });
+
+  show('vLoading');
+
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method:  'POST',
+      mode:    'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        formType:    'attendance',
+        timestamp:   now.toISOString(),
+        weekOf,
+        memberName:  name,
+        status,
+        signInTime,
+        lateMins,
+      }),
+    });
+    // Mark button green so MC can see who's signed in
+    if (btn) { btn.classList.add('signed'); btn.textContent = '✓ ' + name; }
+    if (!_signedNames.includes(name)) { _signedNames.push(name); _saveSigned(); }
+    showSuccess(name, signInTime, status, lateMins);
+  } catch {
+    if (btn) btn.disabled = false;
+    show('vSignin');
+    alert('Network error — check connection and try again.');
+  }
+}
+
+function showSuccess(name, time, status, lateMins) {
+  const isLate    = status === 'Late';
+  const firstName = name.split(' ')[0];
+
+  document.getElementById('sEmoji').textContent    = isLate ? '⏰' : '✅';
+  document.getElementById('sGreeting').textContent = isLate
+    ? `Hey, ${firstName}!`
+    : `Good morning, ${firstName}!`;
+  document.getElementById('sTime').textContent = `Signed in at ${time}`;
+
+  const badge = document.getElementById('sBadge');
+  badge.textContent = isLate ? '⏰ LATE' : '✅ ON TIME';
+  badge.className   = `s-badge ${isLate ? 'late' : 'present'}`;
+
+  const lateEl = document.getElementById('sLateDetail');
+  if (isLate && lateMins > 0) {
+    lateEl.textContent = `${lateMins} minute${lateMins !== 1 ? 's' : ''} after meeting started`;
+    lateEl.hidden = false;
+  } else {
+    lateEl.hidden = true;
+  }
+
+  document.getElementById('rosterWrap').hidden = true;
+  show('vSuccess');
+  fetchAndShowRoster();
+}
+
+let countdownTimer;
+function startCountdown(ms = 5000) {
+  const fill = document.getElementById('resetFill');
+  fill.style.transition = 'none';
+  fill.style.width = '100%';
+
+  // Trigger reflow then animate
+  void fill.offsetWidth;
+  fill.style.transition = `width ${ms}ms linear`;
+  fill.style.width = '0%';
+
+  clearTimeout(countdownTimer);
+  countdownTimer = setTimeout(resetSignIn, ms);
+}
+
+function resetSignIn() {
+  clearTimeout(countdownTimer);
+  show('vSignin');
+}
+
+// ── SHEET SYNC ──────────────────────────────────────────────
+// Fetches current attendance from the sheet and marks signed members
+// green on the main grid — keeps all devices in sync on load.
+async function syncGridFromSheet() {
+  try {
+    const url  = APPS_SCRIPT_URL + '?action=getAttendance&weekOf=' + encodeURIComponent(_weekOfStr());
+    const res  = await fetch(url);
+    const data = await res.json();
+    if (!data.members) return;
+    data.members.forEach(m => {
+      if (m.status && m.status !== 'Absent') {
+        const btn = document.getElementById('mb-' + m.name.replace(/\s+/g, '-'));
+        if (btn && !btn.classList.contains('signed')) {
+          btn.classList.add('signed');
+          btn.textContent = '✓ ' + m.name;
+        }
+        if (!_signedNames.includes(m.name)) _signedNames.push(m.name);
+      }
+    });
+    _saveSigned();
+  } catch { /* silent — best effort */ }
+}
+
+function _weekOfStr() {
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const t = nextTuesday();
+  return String(t.getDate()).padStart(2,'0') + ' ' + MONTHS[t.getMonth()] + ' ' + t.getFullYear();
+}
+
+// ── ROSTER SNAPSHOT ─────────────────────────────────────────
+async function fetchAndShowRoster() {
+  const wrap = document.getElementById('rosterWrap');
+  wrap.hidden = false;
+  document.getElementById('rosterCounts').textContent = 'Loading…';
+  document.getElementById('rosterHere').innerHTML   = '';
+  document.getElementById('rosterNotYet').innerHTML = '';
+  document.getElementById('rosterNotYetLbl').hidden = true;
+
+  try {
+    const url = APPS_SCRIPT_URL + '?action=getAttendance&weekOf=' + encodeURIComponent(_weekOfStr());
+    const res    = await fetch(url);
+    const data   = await res.json();
+    renderRoster(data.members || []);
+  } catch {
+    document.getElementById('rosterCounts').textContent = 'Could not load roster.';
+  }
+}
+
+function renderRoster(members) {
+  const here   = members.filter(m => m.status && m.status !== 'Absent');
+  const notYet = members.filter(m => !m.status);
+
+  document.getElementById('rosterCounts').innerHTML =
+    `<strong>${here.length}</strong> in the room &nbsp;·&nbsp; <strong>${notYet.length}</strong> not yet`;
+
+  document.getElementById('rosterHere').innerHTML = here
+    .map(m => `<span class="roster-chip here">${m.name}</span>`)
+    .join('');
+
+  if (notYet.length > 0) {
+    document.getElementById('rosterNotYetLbl').hidden = false;
+    document.getElementById('rosterNotYet').innerHTML = notYet
+      .map(m => `<span class="roster-chip away">${m.name}</span>`)
+      .join('');
+  }
+}
+
+// ── QR CODE ─────────────────────────────────────────────────
+function showQR() {
+  const url = 'https://tinyurl.com/BNIEmpowerAttendance';
+  document.getElementById('qrUrl').textContent = url;
+  show('vQR');
+
+  const canvas = document.getElementById('qrCanvas');
+
+  // Try the bundled QRCode library first
+  if (typeof QRCode !== 'undefined') {
+    QRCode.toCanvas(canvas, url, {
+      width: 250, margin: 2,
+      color: { dark: '#000000', light: '#ffffff' },
+      errorCorrectionLevel: 'M',
+    }, function(err) {
+      if (err) renderQRFallback(url);
+    });
+  } else {
+    renderQRFallback(url);
+  }
+}
+
+function renderQRFallback(url) {
+  // Replace canvas with a Google Charts QR image as fallback
+  const canvas = document.getElementById('qrCanvas');
+  const img = document.createElement('img');
+  img.src    = 'https://chart.googleapis.com/chart?cht=qr&chs=250x250&chl=' + encodeURIComponent(url) + '&choe=UTF-8';
+  img.width  = 250;
+  img.height = 250;
+  img.style.borderRadius = '8px';
+  canvas.replaceWith(img);
+}
+
+function hideQR() { show('vSignin'); }
+
+// ── HELPERS ──────────────────────────────────────────────────
+function show(id) {
+  const flexViews = new Set(['vLoading','vSuccess','vNFC']);
+  ['vSignin','vLoading','vSuccess','vQR','vNFC','vAdmin'].forEach(v => {
+    const el = document.getElementById(v);
+    if (v === id) {
+      el.hidden = false;
+      if (flexViews.has(v)) el.style.display = 'flex';
+    } else {
+      el.hidden = true;
+      el.style.display = '';
+    }
+  });
+}
+
+// ── ADMIN MODE ───────────────────────────────────────────────
+// Triple-tap the "B" logo in the header to enter admin mode.
+const ADMIN_PIN = '0303';  // BNI Empower launch date — 3 March
+
+let _logoTaps = 0, _logoTimer;
+document.querySelector('.logo-mark').addEventListener('click', () => {
+  _logoTaps++;
+  clearTimeout(_logoTimer);
+  if (_logoTaps >= 3) {
+    _logoTaps = 0;
+    enterAdmin();
+  } else {
+    _logoTimer = setTimeout(() => { _logoTaps = 0; }, 700);
+  }
+});
+
+// Map of name → 'present' | 'absent' | 'sub'
+let _adminStatuses = new Map();
+let _pickerTarget  = '';
+let _pickerIsEdit  = false;
+let _pressTimer    = null;
+
+// Long-press (600 ms) + double-click trigger for desktop and touch
+function addLongPress(el, fn) {
+  el.addEventListener('dblclick', fn);
+  el.addEventListener('pointerdown', () => { _pressTimer = setTimeout(fn, 600); });
+  el.addEventListener('pointerup',    () => clearTimeout(_pressTimer));
+  el.addEventListener('pointerleave', () => clearTimeout(_pressTimer));
+  el.addEventListener('pointermove',  () => clearTimeout(_pressTimer));
+}
+
+function enterAdmin() {
+  const pin = prompt('Admin PIN:');
+  if (pin === null) return;
+  if (pin !== ADMIN_PIN) { alert('Incorrect PIN.'); return; }
+  _adminStatuses.clear();
+  renderAdminGrid();
+  updateAdminSubmitBtn();
+  document.getElementById('adminStatus').textContent = '';
+  show('vAdmin');
+}
+
+function exitAdmin() {
+  show('vSignin');
+}
+
+function renderAdminGrid() {
+  const grid = document.getElementById('adminGrid');
+  grid.innerHTML = '';
+  [...MEMBERS].sort().forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'name-btn';
+    btn.id        = 'adm-' + name.replace(/\s+/g, '-');
+    btn.textContent = name;
+    const mainBtn = document.getElementById('mb-' + name.replace(/\s+/g, '-'));
+    if (mainBtn && mainBtn.classList.contains('signed')) {
+      btn.classList.add('signed');
+      btn.title = 'Double-tap or hold to edit';
+      addLongPress(btn, () => openPickerEdit(name));
+    } else {
+      btn.onclick = () => openPicker(name);
+    }
+    grid.appendChild(btn);
+  });
+}
+
+function openPicker(name) {
+  _pickerTarget = name;
+  _pickerIsEdit = false;
+  document.getElementById('pickerName').textContent = name;
+  document.getElementById('pickerUnmark').hidden = true;
+  document.getElementById('statusPicker').classList.add('open');
+}
+
+function openPickerEdit(name) {
+  _pickerTarget = name;
+  _pickerIsEdit = true;
+  document.getElementById('pickerName').textContent = name + ' — edit';
+  document.getElementById('pickerUnmark').hidden = false;
+  document.getElementById('statusPicker').classList.add('open');
+}
+
+function closePicker() {
+  document.getElementById('statusPicker').classList.remove('open');
+  _pickerTarget = '';
+  _pickerIsEdit = false;
+}
+
+function setAdminStatus(status) {
+  const name   = _pickerTarget;
+  const isEdit = _pickerIsEdit;
+  closePicker();
+  if (!name) return;
+
+  if (status === 'unmark') {
+    // Remove from UI and localStorage — sheet cell stays, but can re-sign in
+    const admBtn = document.getElementById('adm-' + name.replace(/\s+/g, '-'));
+    if (admBtn) {
+      admBtn.classList.remove('signed', 'adm-present', 'adm-absent', 'adm-sub');
+      admBtn.textContent = name;
+      admBtn.onclick = () => openPicker(name);
+    }
+    const mainBtn = document.getElementById('mb-' + name.replace(/\s+/g, '-'));
+    if (mainBtn) {
+      mainBtn.classList.remove('signed');
+      mainBtn.textContent = name;
+      mainBtn.disabled = false;
+    }
+    const idx = _signedNames.indexOf(name);
+    if (idx !== -1) { _signedNames.splice(idx, 1); _saveSigned(); }
+    _adminStatuses.delete(name);
+    updateAdminSubmitBtn();
+    return;
+  }
+
+  _adminStatuses.set(name, status);
+
+  // If editing a previously-signed member, clear their signed state first
+  if (isEdit) {
+    const mainBtn = document.getElementById('mb-' + name.replace(/\s+/g, '-'));
+    if (mainBtn) { mainBtn.classList.remove('signed'); mainBtn.textContent = name; }
+    const idx = _signedNames.indexOf(name);
+    if (idx !== -1) { _signedNames.splice(idx, 1); _saveSigned(); }
+  }
+
+  const btn = document.getElementById('adm-' + name.replace(/\s+/g, '-'));
+  if (btn) {
+    btn.classList.remove('signed', 'adm-present', 'adm-absent', 'adm-sub');
+    btn.classList.add('adm-' + status);
+    const labels = { present: '✅ ', absent: '❌ ', sub: '🔄 ' };
+    btn.textContent = labels[status] + name.split(' ')[0];
+  }
+  updateAdminSubmitBtn();
+}
+
+function adminMarkAll(status) {
+  [...MEMBERS].forEach(name => {
+    const btn = document.getElementById('adm-' + name.replace(/\s+/g, '-'));
+    if (btn && !btn.classList.contains('signed')) {
+      _adminStatuses.set(name, status);
+      btn.classList.remove('adm-present', 'adm-absent', 'adm-sub');
+      btn.classList.add('adm-' + status);
+      btn.textContent = '✅ ' + name.split(' ')[0];
+    }
+  });
+  updateAdminSubmitBtn();
+}
+
+function adminClearAll() {
+  _adminStatuses.clear();
+  document.querySelectorAll('#adminGrid .name-btn:not(.signed)').forEach(btn => {
+    btn.classList.remove('adm-present', 'adm-absent', 'adm-sub');
+    // Restore full name from MEMBERS
+    const name = MEMBERS.find(n => 'adm-' + n.replace(/\s+/g, '-') === btn.id);
+    if (name) btn.textContent = name;
+  });
+  updateAdminSubmitBtn();
+}
+
+function updateAdminSubmitBtn() {
+  const n   = _adminStatuses.size;
+  const btn = document.getElementById('adminSubmitBtn');
+  btn.textContent = n === 0 ? 'Mark members first' : `Submit ${n} marked →`;
+  btn.disabled = n === 0;
+}
+
+async function submitAdminBatch() {
+  if (_adminStatuses.size === 0) return;
+
+  const submitBtn = document.getElementById('adminSubmitBtn');
+  const statusEl  = document.getElementById('adminStatus');
+  submitBtn.disabled = true;
+  statusEl.textContent = `Submitting ${_adminStatuses.size} members…`;
+
+  const now      = new Date();
+  const start    = new Date(nextTuesday());
+  start.setHours(MEETING_H, MEETING_M, 0, 0);
+  const isLate   = now > start;
+  const lateMins = isLate ? Math.floor((now - start) / 60000) : 0;
+  const signInTime = now.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  const weekOf = _weekOfStr();
+
+  const entries = [..._adminStatuses.entries()];
+
+  const results = await Promise.allSettled(
+    entries.map(([name, adminStatus]) => {
+      // Map admin status to what Apps Script expects
+      const status = adminStatus === 'present'
+        ? (isLate ? 'Late' : 'Present')
+        : adminStatus === 'absent' ? 'Absent' : 'Sub';
+      return fetch(APPS_SCRIPT_URL, {
+        method:  'POST',
+        mode:    'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          formType: 'attendance',
+          source:   'admin',
+          timestamp: now.toISOString(),
+          weekOf,
+          memberName: name,
+          status,
+          signInTime,
+          lateMins: adminStatus === 'present' ? lateMins : 0,
+        }),
+      });
+    })
+  );
+
+  const failed = [];
+  results.forEach((result, i) => {
+    const [name, adminStatus] = entries[i];
+    if (result.status === 'fulfilled') {
+      // Update main grid: only present/sub show as signed (green); absent stays unmarked
+      if (adminStatus !== 'absent') {
+        const mainBtn = document.getElementById('mb-' + name.replace(/\s+/g, '-'));
+        if (mainBtn) { mainBtn.classList.add('signed'); mainBtn.textContent = '✓ ' + name; }
+        if (!_signedNames.includes(name)) _signedNames.push(name);
+      }
+      const admBtn = document.getElementById('adm-' + name.replace(/\s+/g, '-'));
+      if (admBtn) admBtn.classList.add('signed');
+    } else {
+      failed.push(name);
+    }
+  });
+
+  _adminStatuses.clear();
+  _saveSigned();
+  updateAdminSubmitBtn();
+
+  const done = entries.length - failed.length;
+  statusEl.textContent = failed.length === 0
+    ? `✅ ${done} member${done !== 1 ? 's' : ''} recorded.`
+    : `✅ ${done} recorded · ⚠️ Failed: ${failed.join(', ')}`;
+}
+
+// ── Service Worker ───────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

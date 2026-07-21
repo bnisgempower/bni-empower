@@ -1,0 +1,10 @@
+# ── OS / Google Drive sync junk ──
+desktop.ini
+Thumbs.db
+.DS_Store
+
+# ── Machine-specific Claude Code settings ──
+**/.claude/settings.local.json
+
+# ── Node (if ever added) ──
+node_modules/

@@ -1,0 +1,2178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#c0392b">
+
+  <!-- PWA manifest (Android + Chrome install prompt) -->
+  <link rel="manifest" href="manifest.json">
+
+  <!-- iOS home screen -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BNI Check-In">
+  <link rel="apple-touch-icon" href="icon.svg">
+
+  <title>BNI Empower — Weekly Check-In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+  <!-- QR code generation (self-contained, no external service) -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <style>
+    /* ── Variables ──────────────────────────────────── */
+    :root {
+      --gold:        #c0392b;
+      --gold-bright: #daa94d;
+      --gold-dim:    rgba(200,151,58,.12);
+      --gold-border: rgba(200,151,58,.35);
+      --bg:          #0d0d0d;
+      --bg2:         #141414;
+      --surface:     #1c1c1c;
+      --surface2:    #252525;
+      --border:      #2e2e2e;
+      --text:        #f0ede8;
+      --text-muted:  #888;
+      --text-dim:    #4a4a4a;
+      --success:     #5cc976;
+      --danger:      #e05c5c;
+      --r-sm:        8px;
+      --r:           14px;
+      --tr:          220ms ease;
+    }
+
+    /* ── Reset ──────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-tap-highlight-color: transparent; scroll-behavior: smooth; }
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-bottom: max(env(safe-area-inset-bottom), 24px);
+    }
+
+    /* ── Header ─────────────────────────────────────── */
+    .header {
+      width: 100%;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: blur(12px);
+      text-align: center;
+    }
+    .logo-mark {
+      width: 36px; height: 36px;
+      background: var(--gold);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 18px; color: #000;
+      flex-shrink: 0;
+      letter-spacing: -.5px;
+    }
+    .header-text h1 { font-size: 16px; font-weight: 700; line-height: 1.2; }
+    .header-text p  { font-size: 12px; color: var(--text-muted); }
+
+    /* ── Container ──────────────────────────────────── */
+    .container {
+      width: 100%;
+      max-width: 480px;
+      padding: 0 16px;
+      flex: 1;
+    }
+
+    /* ── Progress ───────────────────────────────────── */
+    #progressBar {
+      display: flex;
+      align-items: flex-start;
+      padding: 22px 8px 6px;
+    }
+    .prog-step {
+      display: flex; flex-direction: column; align-items: center;
+      flex: 1;
+      position: relative;
+    }
+    .prog-step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 13px; left: calc(50% + 14px);
+      right: calc(-50% + 14px);
+      height: 2px;
+      background: var(--border);
+      transition: background var(--tr);
+    }
+    .prog-step.done:not(:last-child)::after { background: var(--gold); }
+
+    .prog-dot {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--bg2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+      color: var(--text-dim);
+      transition: all var(--tr);
+      position: relative; z-index: 1;
+      user-select: none;
+    }
+    .prog-step.active .prog-dot {
+      border-color: var(--gold);
+      background: var(--gold-dim);
+      color: var(--gold);
+    }
+    .prog-step.done .prog-dot {
+      border-color: var(--gold);
+      background: var(--gold);
+      color: #000;
+    }
+    .prog-lbl {
+      font-size: 9px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .05em;
+      color: var(--text-dim);
+      margin-top: 5px;
+      transition: color var(--tr);
+    }
+    .prog-step.active .prog-lbl,
+    .prog-step.done  .prog-lbl { color: var(--gold); }
+
+    /* ── Steps ──────────────────────────────────────── */
+    .step { display: none; padding: 24px 0 32px; animation: fadeUp 200ms ease; }
+    .step.active { display: block; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .step-head { margin-bottom: 22px; }
+    .step-head .step-eyebrow {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .08em;
+      color: var(--gold); margin-bottom: 6px;
+    }
+    .step-head h2 { font-size: 24px; font-weight: 700; line-height: 1.2; }
+    .step-head p  { font-size: 14px; color: var(--text-muted); margin-top: 6px; line-height: 1.55; }
+
+    /* ── Form elements ──────────────────────────────── */
+    .fg { margin-bottom: 16px; }
+    .fg label {
+      display: block;
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .req { color: var(--gold); margin-left: 2px; }
+
+    input[type="text"],
+    input[type="tel"],
+    select {
+      width: 100%;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-sm);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 16px;
+      padding: 14px 16px;
+      -webkit-appearance: none;
+      appearance: none;
+      outline: none;
+      transition: border-color var(--tr);
+    }
+    input:focus, select:focus { border-color: var(--gold); }
+    input.err, select.err     { border-color: var(--danger); }
+    input[readonly]           { opacity: .6; cursor: default; }
+
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 44px;
+      cursor: pointer;
+    }
+
+    .errmsg {
+      color: var(--danger); font-size: 12px;
+      margin-top: 6px; display: none;
+    }
+    .errmsg.on { display: block; }
+
+    /* ── Week badge ─────────────────────────────────── */
+    .week-badge {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-sm);
+      padding: 14px 16px;
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 20px;
+    }
+    .week-badge .wicon { font-size: 22px; }
+    .week-badge .wlbl  { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+    .week-badge .wval  { font-size: 17px; font-weight: 700; color: var(--gold); margin-top: 2px; }
+
+    /* ── Remember me ────────────────────────────────── */
+    .remember {
+      display: flex; align-items: center; gap: 10px;
+      margin-top: 14px; cursor: pointer;
+    }
+    .remember input[type="checkbox"] {
+      width: 18px; height: 18px; accent-color: var(--gold); flex-shrink: 0; cursor: pointer;
+    }
+    .remember span { font-size: 14px; color: var(--text-muted); cursor: pointer; }
+
+    /* ── Big Y/N buttons ────────────────────────────── */
+    .yn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .yn-btn {
+      padding: 22px 12px;
+      border-radius: var(--r);
+      border: 2px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px; font-weight: 700;
+      cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      transition: all var(--tr);
+      line-height: 1.3;
+      text-align: center;
+    }
+    .yn-btn .yni { font-size: 34px; }
+
+    .yn-btn.yes-sel {
+      border-color: var(--success);
+      background: rgba(92,201,118,.1);
+      color: var(--success);
+    }
+    .yn-btn.no-sel {
+      border-color: var(--danger);
+      background: rgba(224,92,92,.1);
+      color: var(--danger);
+    }
+    .yn-btn:active { transform: scale(.97); }
+
+    /* ── Payment options ────────────────────────────── */
+    .pay-opts { display: grid; gap: 10px; }
+    .pay-opt {
+      display: flex; align-items: center; gap: 14px;
+      padding: 16px;
+      border-radius: var(--r-sm);
+      border: 2px solid var(--border);
+      background: var(--surface);
+      cursor: pointer;
+      transition: all var(--tr);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .pay-opt:has(input:checked) {
+      border-color: var(--gold);
+      background: var(--gold-dim);
+    }
+    .pay-opt input[type="radio"] {
+      width: 20px; height: 20px;
+      accent-color: var(--gold);
+      flex-shrink: 0; cursor: pointer;
+    }
+    .pay-opt span { font-size: 16px; font-weight: 500; color: var(--text); cursor: pointer; }
+
+    /* ── Toggle group (Confirmed / Pending) ─────────── */
+    .toggle-row { display: flex; gap: 8px; }
+    .tog {
+      flex: 1; padding: 15px 12px;
+      border-radius: var(--r-sm);
+      border: 2px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px; font-weight: 600;
+      cursor: pointer;
+      transition: all var(--tr);
+      text-align: center;
+    }
+    .tog.sel {
+      border-color: var(--gold);
+      background: var(--gold-dim);
+      color: var(--gold);
+    }
+
+    /* ── Parking coupon toggles ─────────────────────── */
+    .park-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px;
+      border-radius: var(--r-sm);
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      margin-bottom: 8px;
+      gap: 12px;
+    }
+    .park-label { font-size: 15px; font-weight: 600; }
+    .park-sublabel { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .park-toggles { display: flex; gap: 6px; flex-shrink: 0; }
+    .park-tog {
+      padding: 8px 16px;
+      border-radius: 20px;
+      border: 1.5px solid var(--border);
+      background: var(--bg2);
+      color: var(--text-muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px; font-weight: 700;
+      cursor: pointer;
+      transition: all var(--tr);
+    }
+    .park-tog.yes { border-color: var(--success); background: rgba(92,201,118,.12); color: var(--success); }
+    .park-tog.no  { border-color: var(--danger);  background: rgba(224,92,92,.12);  color: var(--danger); }
+
+    /* ── Divider ────────────────────────────────────── */
+    .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+    /* ── Buttons ─────────────────────────────────────── */
+    .btn {
+      width: 100%; padding: 16px;
+      border-radius: var(--r-sm);
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 16px; font-weight: 700;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: all var(--tr);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn-primary  { background: var(--gold); color: #000; }
+    .btn-primary:hover { background: var(--gold-bright); }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .btn-ghost    { background: transparent; color: var(--text-muted); border: 1.5px solid var(--border); }
+    .btn-ghost:hover { background: var(--surface); }
+    .btn-row { display: flex; flex-direction: column; gap: 10px; margin-top: 28px; }
+
+    /* ── Review ─────────────────────────────────────── */
+    .review-card {
+      background: var(--surface);
+      border-radius: var(--r);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .review-card-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .review-card-title {
+      font-size: 10px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: .07em;
+      color: var(--gold);
+    }
+    .review-edit {
+      font-size: 12px; color: var(--text-muted);
+      background: none; border: none; cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      text-decoration: underline; padding: 0;
+    }
+    .review-row {
+      display: flex; justify-content: space-between; gap: 16px;
+      padding: 7px 0;
+      border-top: 1px solid var(--border);
+    }
+    .review-row:first-of-type { border-top: none; }
+    .rkey { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+    .rval { font-size: 13px; font-weight: 600; color: var(--text); text-align: right; }
+
+    /* ── Spinner ────────────────────────────────────── */
+    .spinner {
+      border: 3px solid rgba(255,255,255,.12);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin .75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Center card (success / loading) ────────────── */
+    .center-card {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: 48px 20px 32px;
+    }
+    .center-card .big-icon { font-size: 68px; line-height: 1; margin-bottom: 20px; }
+    .center-card h2 { font-size: 26px; font-weight: 700; margin-bottom: 10px; }
+    .center-card p  { font-size: 15px; color: var(--text-muted); line-height: 1.6; max-width: 320px; }
+
+    /* ── Toast ──────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: max(env(safe-area-inset-bottom), 24px);
+      left: 50%; transform: translateX(-50%) translateY(80px);
+      background: var(--danger);
+      color: #fff;
+      padding: 13px 22px;
+      border-radius: var(--r-sm);
+      font-size: 14px; font-weight: 500;
+      max-width: calc(100% - 32px);
+      transition: transform 320ms cubic-bezier(.25,.8,.25,1);
+      z-index: 100;
+      white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── Footer ─────────────────────────────────────── */
+    footer {
+      text-align: center;
+      font-size: 11px; color: var(--text-dim);
+      padding: 16px;
+      margin-top: 8px;
+    }
+
+    /* ── Payment info card ──────────────────────────── */
+    .pay-info-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r);
+      padding: 16px 18px;
+      margin-bottom: 16px;
+    }
+    .pay-info-to {
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .07em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .pay-info-name {
+      font-size: 20px; font-weight: 700;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+    .pay-info-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 7px 0;
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+    }
+    .pay-info-row .pik { color: var(--text-muted); }
+    .pay-info-row .piv { font-weight: 700; color: var(--text); letter-spacing: .03em; }
+
+    /* ── PayNow QR section ──────────────────────────── */
+    .qr-section {
+      display: flex; flex-direction: column; align-items: center;
+      background: var(--surface);
+      border: 1.5px solid var(--gold-border);
+      border-radius: var(--r);
+      padding: 18px 16px 14px;
+      margin-bottom: 20px;
+    }
+    .qr-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 14px;
+      align-self: stretch;
+    }
+    .qr-badge {
+      background: var(--gold);
+      color: #000;
+      font-size: 10px; font-weight: 800;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .qr-hint {
+      font-size: 12px; color: var(--text-muted);
+    }
+    .qr-canvas-wrap {
+      background: #fff;
+      border-radius: 10px;
+      padding: 12px;
+      display: inline-flex;
+    }
+    .qr-canvas-wrap canvas { display: block; border-radius: 4px; }
+    .qr-subtext {
+      font-size: 11px; color: var(--text-muted);
+      margin-top: 10px; text-align: center; line-height: 1.5;
+    }
+    .qr-notice {
+      background: var(--gold-dim);
+      border: 1px solid var(--gold-border);
+      border-radius: var(--r-sm);
+      padding: 10px 12px;
+      font-size: 12px; color: var(--gold);
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+
+    /* ── Pay method divider ─────────────────────────── */
+    .pay-method-lbl {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    /* ── Multi-visitor UI ───────────────────────────── */
+    .vis-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-sm);
+      padding: 14px 14px 14px 16px;
+      margin-bottom: 10px;
+      animation: fadeUp 180ms ease;
+    }
+    .vis-card-head {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    }
+    .vis-card-num {
+      font-size: 10px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: var(--gold); margin-bottom: 3px;
+    }
+    .vis-card-name { font-size: 15px; font-weight: 700; color: var(--text); }
+    .vis-card-sub  { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .vis-remove {
+      background: none; border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text-muted);
+      width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; cursor: pointer; flex-shrink: 0;
+      transition: all var(--tr);
+    }
+    .vis-remove:hover { border-color: var(--danger); color: var(--danger); }
+    .vis-edit {
+      background: none; border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text-muted);
+      width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; cursor: pointer; flex-shrink: 0;
+      transition: all var(--tr);
+    }
+    .vis-edit:hover { border-color: var(--gold); color: var(--gold); }
+    .vis-card-actions { display: flex; gap: 6px; }
+
+    .add-vis-form {
+      background: var(--surface);
+      border: 1.5px dashed var(--border);
+      border-radius: var(--r);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .add-vis-title {
+      font-size: 12px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: var(--gold); margin-bottom: 14px;
+    }
+    .add-vis-actions { display: flex; gap: 8px; margin-top: 4px; }
+    .btn-icon {
+      flex-shrink: 0;
+      width: 52px; height: 52px; padding: 0;
+      background: transparent;
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-sm);
+      color: var(--text-muted);
+      font-size: 16px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all var(--tr);
+    }
+    .btn-icon:hover { border-color: var(--danger); color: var(--danger); }
+
+    .add-another-btn {
+      margin-bottom: 4px;
+      border-style: dashed;
+    }
+
+    /* ── Country code picker ────────────────────────── */
+    .phone-row {
+      display: flex; gap: 8px; align-items: flex-start;
+    }
+    .prefix-btn {
+      flex-shrink: 0;
+      height: 52px;
+      padding: 0 12px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-sm);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px; font-weight: 600;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+      white-space: nowrap;
+      transition: border-color var(--tr);
+    }
+    .prefix-btn:focus, .prefix-btn:hover { border-color: var(--gold); outline: none; }
+    .prefix-btn .pfx-arrow { font-size: 10px; color: var(--text-muted); }
+    .phone-row .fg { flex: 1; margin-bottom: 0; }
+
+    /* overlay */
+    .cp-overlay {
+      position: fixed; inset: 0; z-index: 900;
+      background: rgba(0,0,0,.65);
+      display: flex; align-items: flex-end;
+      opacity: 0; pointer-events: none;
+      transition: opacity 200ms ease;
+    }
+    .cp-overlay.open { opacity: 1; pointer-events: auto; }
+    .cp-sheet {
+      width: 100%; max-width: 480px; margin: 0 auto;
+      background: var(--bg2);
+      border-radius: 20px 20px 0 0;
+      border-top: 1.5px solid var(--border);
+      padding: 16px 0 env(safe-area-inset-bottom,12px);
+      max-height: 75vh;
+      display: flex; flex-direction: column;
+      transform: translateY(100%);
+      transition: transform 220ms ease;
+    }
+    .cp-overlay.open .cp-sheet { transform: translateY(0); }
+    .cp-sheet-title {
+      font-size: 13px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: var(--text-muted);
+      padding: 0 18px 10px;
+    }
+    .cp-search-wrap {
+      padding: 0 14px 10px;
+    }
+    .cp-search {
+      width: 100%;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-sm);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      padding: 11px 14px;
+      outline: none;
+    }
+    .cp-search:focus { border-color: var(--gold); }
+    .cp-list {
+      overflow-y: auto;
+      flex: 1;
+    }
+    .cp-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 18px;
+      cursor: pointer;
+      transition: background var(--tr);
+      border: none; background: none;
+      width: 100%; text-align: left;
+    }
+    .cp-item:hover, .cp-item:active { background: var(--surface); }
+    .cp-item.selected { background: rgba(192,57,43,.1); }
+    .cp-flag { flex-shrink: 0; width: 24px; height: 18px; border-radius: 2px; object-fit: cover; display: block; }
+    .cp-cname { flex: 1; font-size: 14px; font-weight: 500; color: var(--text); }
+    .cp-dial  { font-size: 14px; font-weight: 700; font-family: 'SF Mono','Consolas','Menlo',monospace; color: var(--gold); flex-shrink: 0; letter-spacing: .02em; }
+    .pfx-flag { width: 22px; height: 16px; border-radius: 2px; object-fit: cover; display: block; flex-shrink: 0; }
+    .pfx-code { font-size: 15px; font-weight: 700; font-family: 'SF Mono','Consolas','Menlo',monospace; letter-spacing: .02em; }
+    .contacts-btn {
+      flex-shrink: 0;
+      height: 52px; width: 52px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-sm);
+      color: var(--text-muted);
+      font-size: 20px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color var(--tr), color var(--tr);
+    }
+    .contacts-btn:hover { border-color: var(--gold); color: var(--gold); }
+    .contacts-btn:active { transform: scale(.94); }
+
+    .no-visitors-hint {
+      font-size: 13px; color: var(--text-muted);
+      text-align: center; padding: 8px 0 14px;
+    }
+
+    @media (min-width: 480px) {
+      .container { padding: 0 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── Header ──────────────────────────────────────── -->
+<header class="header">
+  <div class="logo-mark">B</div>
+  <div class="header-text">
+    <h1>BNI Empower</h1>
+    <p>Weekly Check-In</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ─── Progress bar ────────────────────────────── -->
+  <div id="progressBar">
+    <div class="prog-step active" data-stage="1">
+      <div class="prog-dot">1</div>
+      <div class="prog-lbl">Name</div>
+    </div>
+    <div class="prog-step" data-stage="2">
+      <div class="prog-dot">2</div>
+      <div class="prog-lbl">Attend</div>
+    </div>
+    <div class="prog-step" data-stage="3">
+      <div class="prog-dot">3</div>
+      <div class="prog-lbl" id="progLbl3">Payment</div>
+    </div>
+    <div class="prog-step" data-stage="4">
+      <div class="prog-dot">4</div>
+      <div class="prog-lbl">Visitors</div>
+    </div>
+    <div class="prog-step" data-stage="5">
+      <div class="prog-dot">5</div>
+      <div class="prog-lbl">Review</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       STEP 1 — Identity
+  ═══════════════════════════════════════════════ -->
+  <div id="s1" class="step active">
+    <div class="step-head">
+      <h2>Confirm your attendance for upcoming meeting.</h2>
+    </div>
+
+    <div class="week-badge">
+      <span class="wicon">📅</span>
+      <div>
+        <div class="wlbl">Meeting Date</div>
+        <div class="wval" id="weekDisplay">—</div>
+      </div>
+    </div>
+
+    <div class="fg">
+      <label>Member Name <span class="req">*</span></label>
+      <select id="memberSelect">
+        <option value="">— Select your name —</option>
+      </select>
+      <div class="errmsg" id="e-member">Please select your name.</div>
+    </div>
+
+    <label class="remember">
+      <input type="checkbox" id="rememberMe">
+      <span>Remember me on this device</span>
+    </label>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="step1Next()">Continue →</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       STEP 2 — Attendance
+  ═══════════════════════════════════════════════ -->
+  <div id="s2" class="step">
+    <div class="step-head">
+      <h2>Attending this week?</h2>
+      <p>Will you be at the BNI Empower meeting?</p>
+    </div>
+
+    <div class="yn-grid" style="grid-template-columns:1fr">
+      <button class="yn-btn" id="yn-yes" onclick="pickAttend('yes')">
+        <span class="yni">✅</span>
+        <span>Yes, I'll be there</span>
+      </button>
+      <button class="yn-btn" id="yn-sub" onclick="pickAttend('sub')">
+        <span class="yni">🔄</span>
+        <span>No, sending a sub</span>
+      </button>
+      <button class="yn-btn" id="yn-absent" onclick="pickAttend('absent')">
+        <span class="yni">❌</span>
+        <span>No, will be absent</span>
+      </button>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="nav('s1',1)">← Back</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       STEP 3a — Payment
+  ═══════════════════════════════════════════════ -->
+  <div id="s3a" class="step">
+    <div class="step-head">
+      <h2>Payment</h2>
+      <p>Transfer to the account below, then confirm your status.</p>
+    </div>
+
+    <!-- Bank transfer details -->
+    <div class="pay-info-card">
+      <div class="pay-info-to">Pay to</div>
+      <div class="pay-info-name">Rachel Teo</div>
+      <div class="pay-info-row">
+        <span class="pik">Bank</span>
+        <span class="piv">Trust Bank</span>
+      </div>
+      <div class="pay-info-row">
+        <span class="pik">Account No.</span>
+        <span style="display:flex;align-items:center;gap:6px">
+          <button onclick="copyAccNo()" id="copyAccBtn" style="padding:3px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">Copy</button>
+          <span class="piv">0199435678</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Payment method confirmation -->
+    <div class="pay-method-lbl">Payment status</div>
+    <div class="pay-opts">
+      <label class="pay-opt">
+        <input type="radio" name="pay" value="Bank Transfer">
+        <span>✅&nbsp;&nbsp;Paid — Bank Transfer</span>
+      </label>
+      <label class="pay-opt">
+        <input type="radio" name="pay" value="Not yet paid">
+        <span>⏳&nbsp;&nbsp;Not yet paid</span>
+      </label>
+    </div>
+    <div class="errmsg" id="e-pay">Please select a payment option.</div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="step3aNext()">Continue →</button>
+      <button class="btn btn-ghost" onclick="nav('s2',2)">← Back</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       STEP 3b — Substitute
+  ═══════════════════════════════════════════════ -->
+  <div id="s3b" class="step">
+    <div class="step-head">
+      <h2>Substitute details</h2>
+      <p>Tell us who will represent you at the meeting.</p>
+    </div>
+
+    <div class="fg">
+      <label>Sub's Full Name <span class="req">*</span></label>
+      <input type="text" id="subName" placeholder="e.g. Jane Doe" autocomplete="off">
+      <div class="errmsg" id="e-subName">Required</div>
+    </div>
+    <div class="fg">
+      <label>Sub's Phone <span class="req">*</span></label>
+      <div class="phone-row">
+        <button type="button" class="prefix-btn" id="sub-prefixBtn" onclick="openCountryPicker('sub')">
+          <img id="sub-prefixFlag" class="pfx-flag" src="https://flagcdn.com/w40/sg.png" alt="SG">
+          <span id="sub-prefixCode" class="pfx-code">+65</span>
+          <span class="pfx-arrow">▾</span>
+        </button>
+        <div class="fg">
+          <input type="tel" id="subPhone" placeholder="81234567" inputmode="numeric" autocomplete="off">
+        </div>
+      </div>
+      <div class="errmsg" id="e-subPhone">Required</div>
+    </div>
+    <div class="fg">
+      <label>Sub Status <span class="req">*</span></label>
+      <div class="toggle-row">
+        <button class="tog" id="tog-confirmed" onclick="pickSubStatus('Confirmed')">✓&nbsp; Confirmed</button>
+        <button class="tog" id="tog-pending"   onclick="pickSubStatus('Pending')">⏳&nbsp; Pending</button>
+      </div>
+      <div class="errmsg" id="e-subStatus">Please select a status.</div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="step3bNext()">Continue →</button>
+      <button class="btn btn-ghost" onclick="backFromS3b()">← Back</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       STEP 4 — Visitor Y/N
+  ═══════════════════════════════════════════════ -->
+  <div id="s4" class="step">
+    <div class="step-head">
+      <h2>Bringing a visitor?</h2>
+      <p>Are you inviting a guest to this week's meeting?</p>
+    </div>
+
+    <div class="yn-grid">
+      <button class="yn-btn" id="vyn-yes" onclick="pickVisitor('yes')">
+        <span class="yni">🙋</span>
+        <span>Yes, bringing<br>a visitor</span>
+      </button>
+      <button class="yn-btn" id="vyn-no" onclick="pickVisitor('no')">
+        <span class="yni">🚫</span>
+        <span>No visitor<br>this week</span>
+      </button>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="backFromS4()">← Back</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       STEP 4b — Visitor Details (multi)
+  ═══════════════════════════════════════════════ -->
+  <div id="s4b" class="step">
+    <div class="step-head">
+      <h2>Visitor details</h2>
+      <p>Add each guest you're bringing. You can add more than one.</p>
+      <p style="margin-top:6px;font-size:12px;color:var(--gold);">For Visitor Hosts to reach out to them before our meeting!</p>
+    </div>
+
+    <!-- Added visitor cards rendered here -->
+    <div id="visitorsList"></div>
+
+    <!-- Inline add form -->
+    <div id="addVisForm" class="add-vis-form">
+      <div class="add-vis-title" id="addVisTitle">Visitor 1</div>
+      <div class="fg">
+        <label>Name <span class="req">*</span></label>
+        <input type="text" id="vNew-name" placeholder="e.g. John Smith" autocomplete="off">
+        <div class="errmsg" id="e-vNew-name">Required</div>
+      </div>
+      <div class="fg" style="margin-bottom:14px;">
+        <label>Contact Number <span class="req">*</span></label>
+        <div class="phone-row">
+          <button type="button" class="prefix-btn" id="vNew-prefixBtn" onclick="openCountryPicker()">
+            <img id="vNew-prefixFlag" class="pfx-flag" src="https://flagcdn.com/w40/sg.png" alt="SG">
+            <span id="vNew-prefixCode" class="pfx-code">+65</span>
+            <span class="pfx-arrow">▾</span>
+          </button>
+          <div class="fg">
+            <input type="tel" id="vNew-contact" placeholder="81234567" inputmode="numeric" autocomplete="off">
+          </div>
+          <button type="button" class="contacts-btn" id="contactsPickerBtn"
+                  onclick="pickFromContacts()" title="Pick from contacts" style="display:none;">
+            📒
+          </button>
+        </div>
+        <div class="errmsg" id="e-vNew-contact">Required</div>
+      </div>
+      <div class="add-vis-actions">
+        <button class="btn btn-primary" onclick="addVisitor()" style="flex:1;">Add Visitor →</button>
+        <button class="btn-icon" id="cancelAddBtn" onclick="hideAddForm()" title="Cancel">✕</button>
+      </div>
+    </div>
+
+    <!-- "Add another" button (shown when at least 1 visitor added and form is hidden) -->
+    <button class="btn btn-ghost add-another-btn" id="addAnotherBtn"
+            onclick="showAddForm()" style="display:none;">
+      + Add another visitor
+    </button>
+
+    <div class="errmsg" id="e-visitors" style="margin-top:4px;margin-bottom:8px;">
+      Please add at least one visitor.
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="step4bNext()">Continue →</button>
+      <button class="btn btn-ghost" onclick="nav('s4',4)">← Back</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       STEP 4c — Parking Coupons (physical meetings only)
+  ═══════════════════════════════════════════════ -->
+  <div id="s4c" class="step">
+    <div class="step-head">
+      <h2>Parking Coupons 🅿️</h2>
+      <p>Select who needs a parking coupon for this week's physical meeting.</p>
+    </div>
+    <div id="parkingList"></div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="step4cNext()">Continue →</button>
+      <button class="btn btn-ghost" onclick="backFromS4c()">← Back</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       STEP 5 — Review
+  ═══════════════════════════════════════════════ -->
+  <div id="s5" class="step">
+    <div class="step-head">
+      <h2>Review &amp; Submit</h2>
+      <p>Double-check everything before sending.</p>
+    </div>
+
+    <div id="reviewBody"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="submitBtn" onclick="submitForm()">
+        Submit Check-In ✓
+      </button>
+      <button class="btn btn-ghost" onclick="backFromReview()">← Back</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       Submitting (loading)
+  ═══════════════════════════════════════════════ -->
+  <div id="sLoading" class="step">
+    <div class="center-card">
+      <div class="spinner" style="width:52px;height:52px;margin-bottom:28px;"></div>
+      <h2>Submitting…</h2>
+      <p>Recording your check-in. Please wait a moment.</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       Success
+  ═══════════════════════════════════════════════ -->
+  <div id="sSuccess" class="step">
+    <div class="center-card">
+      <div class="big-icon">🎉</div>
+      <h2>You're checked in!</h2>
+      <p id="successMsg">Your response has been recorded.</p>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="resetAll()">Submit another</button>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<div id="toast"></div>
+
+<footer>BNI Empower Chapter · Weekly Check-In</footer>
+
+<!-- ════════════════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ── CONFIG ────────────────────────────────────────────
+// Replace with your deployed Apps Script web app URL:
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxYCpexo7cuQwYMpBwLtVn48hEQAoz1PQw17INXwZpXz-nh7foLB4-8Dhct2a7yNE8lMg/exec';
+
+// ── PAYMENT CONFIG ────────────────────────────────────
+// UPDATE: set PAYNOW_PROXY to Rachel's mobile number linked to PayNow.
+//   Format: '+6591234567'  (country code + 8-digit SG mobile)
+//   Or use her NRIC (e.g. 'S1234567A') and set PAYNOW_TYPE to '3'.
+const PAYMENT = {
+  payeeName:   'Rachel Teo',
+  bank:        'Trust Bank',
+  accountNo:   '0199435678',
+  paynowProxy: '+6599999999',  // ← REPLACE with Rachel's PayNow mobile
+  paynowType:  '2',            //   '2' = mobile number, '3' = NRIC/FIN
+};
+
+// ── ROSTER — loaded from Active_Members sheet on init ────────────────────────
+let MEMBERS = [];
+
+// ── STATE ────────────────────────────────────────────
+const F = {
+  member: '', weekOf: '',
+  attending: '',
+  payment: '',
+  subName: '', subCompany: '', subTrade: '', subDialCode: '', subPhone: '', subStatus: '',
+  subSkipped: false,  // true when member is absent with no sub
+  hasVisitor: '',
+  visitors: [],  // [{name, company, industry, contact, invitedBy}]
+  parkingCoupons: {},  // { memberName: bool, visitorName: bool, ... }
+};
+
+// Stage mapping for progress bar
+const STAGE = {
+  s1:1, s2:2, s3a:3, s3b:3, s4:4, s4b:4, s4c:4, s5:5, sLoading:5, sSuccess:5
+};
+
+let current = 's1';
+
+// ── INIT ─────────────────────────────────────────────
+(async function init() {
+  // Auto week-of: next Monday (or today if Monday)
+  F.weekOf = calcWeekOf();
+  document.getElementById('weekDisplay').textContent = F.weekOf + (isPhysicalMeeting() ? ' (Physical)' : ' (Online)');
+
+  // Load member roster from sheet
+  const sel = document.getElementById('memberSelect');
+  try {
+    const res  = await fetch(APPS_SCRIPT_URL + '?action=getRoster');
+    const json = await res.json();
+    MEMBERS = json.members || [];
+  } catch (e) {
+    MEMBERS = [];
+  }
+
+  // Populate dropdown (already sorted by backend)
+  MEMBERS.forEach(n => {
+    const o = document.createElement('option');
+    o.value = o.textContent = n;
+    sel.appendChild(o);
+  });
+
+  // Remember-me
+  const saved = localStorage.getItem('bni_member');
+  if (saved && MEMBERS.includes(saved)) {
+    sel.value = saved;
+    F.member = saved;
+    document.getElementById('rememberMe').checked = true;
+  }
+})();
+
+function calcWeekOf() {
+  const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const d   = new Date();
+  const day = d.getDay();
+  d.setDate(d.getDate() + (day === 2 ? 0 : (9 - day) % 7));
+  const dd  = String(d.getDate()).padStart(2, '0');
+  return `${DAYS[d.getDay()]}, ${dd} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// First Tuesday of the month (date ≤ 7) = Physical meeting → payment required
+function isPhysicalMeeting() {
+  const d   = new Date();
+  const day = d.getDay();
+  const add = day === 2 ? 0 : (9 - day) % 7;
+  d.setDate(d.getDate() + add);
+  return d.getDate() <= 7;
+}
+
+// ── NAVIGATION ───────────────────────────────────────
+function nav(toId, stage) {
+  document.getElementById(current).classList.remove('active');
+  document.getElementById(toId).classList.add('active');
+  current = toId;
+  setProgress(stage || STAGE[toId]);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  // Render PayNow QR the first time step 3a is shown
+  if (toId === 's3a') renderPayNowQR();
+}
+
+function setProgress(active) {
+  const bar = document.getElementById('progressBar');
+  bar.style.display = ['sLoading','sSuccess'].includes(current) ? 'none' : 'flex';
+
+  document.querySelectorAll('.prog-step').forEach(el => {
+    const s   = parseInt(el.dataset.stage);
+    const dot = el.querySelector('.prog-dot');
+    el.classList.remove('active','done');
+    if (s < active) {
+      el.classList.add('done');
+      dot.textContent = '✓';
+    } else {
+      dot.textContent = s;
+      if (s === active) el.classList.add('active');
+    }
+  });
+}
+
+// ── PAYNOW QR ────────────────────────────────────────
+// Generates an EMVCo-compliant Singapore PayNow QR payload and
+// renders it onto the <canvas id="payNowCanvas"> element.
+
+let _qrRendered = false;
+
+function renderPayNowQR() {
+  if (_qrRendered) return;
+  const canvas = document.getElementById('payNowCanvas');
+  if (!canvas) return;
+
+  const payload = buildPayNowPayload(
+    PAYMENT.paynowType,
+    PAYMENT.paynowProxy,
+    PAYMENT.payeeName
+  );
+
+  QRCode.toCanvas(canvas, payload, {
+    width: 200,
+    margin: 0,
+    color: { dark: '#000000', light: '#ffffff' },
+    errorCorrectionLevel: 'M',
+  }, err => {
+    if (err) console.error('QR render error:', err);
+    else _qrRendered = true;
+  });
+}
+
+// Builds the EMVCo / PayNow QR payload string with CRC-16.
+function buildPayNowPayload(proxyType, proxy, name) {
+  const t = (id, val) => id + String(val.length).padStart(2,'0') + val;
+
+  // Tag 26: PayNow merchant account
+  const acct =
+    t('00', 'SG.PAYNOW') +
+    t('01', proxyType) +
+    t('02', proxy) +
+    t('03', '0');              // '0' = payer may enter any amount
+
+  // Build body (all tags except the CRC value)
+  const body =
+    t('00', '01') +            // Payload format indicator
+    t('01', '11') +            // Static QR (11 = static, 12 = dynamic)
+    t('26', acct) +            // PayNow merchant account
+    t('52', '0000') +          // MCC (generic)
+    t('53', '702') +           // Currency: SGD
+    t('58', 'SG') +            // Country code
+    t('59', name.slice(0,25)) +// Merchant name (max 25 chars)
+    t('60', 'Singapore') +     // City
+    '6304';                    // CRC tag + length prefix (value appended below)
+
+  return body + crc16ccitt(body);
+}
+
+// CRC-16/CCITT-FALSE (polynomial 0x1021, init 0xFFFF) — required by EMVCo spec.
+function crc16ccitt(str) {
+  let crc = 0xFFFF;
+  for (let i = 0; i < str.length; i++) {
+    crc ^= str.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) {
+      crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 0xFFFF : (crc << 1) & 0xFFFF;
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0');
+}
+
+// ── STEP 1 ───────────────────────────────────────────
+function step1Next() {
+  const sel = document.getElementById('memberSelect');
+  const val = sel.value;
+  if (!val) { errOn('e-member'); sel.classList.add('err'); return; }
+  errOff('e-member'); sel.classList.remove('err');
+
+  F.member = val;
+  if (document.getElementById('rememberMe').checked) {
+    localStorage.setItem('bni_member', val);
+  } else {
+    localStorage.removeItem('bni_member');
+  }
+  nav('s2', 2);
+}
+
+// ── STEP 2 ───────────────────────────────────────────
+function pickAttend(choice) {
+  // choice: 'yes' | 'sub' | 'absent'
+  // Map to the attending flag the rest of the form uses
+  F.attending   = (choice === 'yes') ? 'yes' : 'no';
+  F.subSkipped  = (choice === 'absent');
+
+  document.getElementById('yn-yes').className    = 'yn-btn' + (choice === 'yes'    ? ' yes-sel' : '');
+  document.getElementById('yn-sub').className    = 'yn-btn' + (choice === 'sub'    ? ' no-sel'  : '');
+  document.getElementById('yn-absent').className = 'yn-btn' + (choice === 'absent' ? ' no-sel'  : '');
+
+  if (choice === 'yes') {
+    if (isPhysicalMeeting()) {
+      document.getElementById('progLbl3').innerHTML = 'Payment';
+      setTimeout(() => nav('s3a', 3), 180);
+    } else {
+      F.payment = 'N/A (Online)';
+      document.getElementById('progLbl3').innerHTML = '<s style="opacity:.45">Payment</s>';
+      setTimeout(() => nav('s4', 4), 180);
+    }
+  } else if (choice === 'sub') {
+    if (isPhysicalMeeting()) {
+      document.getElementById('progLbl3').innerHTML = 'Payment';
+      setTimeout(() => nav('s3a', 3), 180);
+    } else {
+      F.payment = 'N/A (Online)';
+      document.getElementById('progLbl3').innerHTML = 'Substitute';
+      setTimeout(() => nav('s3b', 3), 180);
+    }
+  } else {
+    // Absent — skip sub step entirely
+    if (isPhysicalMeeting()) {
+      document.getElementById('progLbl3').innerHTML = 'Payment';
+      setTimeout(() => nav('s3a', 3), 180);
+    } else {
+      F.payment = 'N/A (Online)';
+      document.getElementById('progLbl3').innerHTML = '<s style="opacity:.45">Payment</s>';
+      setTimeout(() => nav('s4', 4), 180);
+    }
+  }
+}
+
+// ── STEP 3a ──────────────────────────────────────────
+function copyAccNo() {
+  navigator.clipboard.writeText(PAYMENT.accountNo).then(() => {
+    const btn = document.getElementById('copyAccBtn');
+    btn.textContent = 'Copied!';
+    btn.style.color = 'var(--success)';
+    btn.style.borderColor = 'var(--success)';
+    setTimeout(() => {
+      btn.textContent = 'Copy';
+      btn.style.color = 'var(--text-muted)';
+      btn.style.borderColor = 'var(--border)';
+    }, 2000);
+  });
+}
+
+function step3aNext() {
+  const sel = document.querySelector('input[name="pay"]:checked');
+  if (!sel) { errOn('e-pay'); return; }
+  errOff('e-pay');
+  F.payment = sel.value;
+  if (F.attending === 'no' && !F.subSkipped) {
+    // Sending a sub — go to sub details
+    document.getElementById('progLbl3').innerHTML = 'Substitute';
+    nav('s3b', 3);
+  } else {
+    nav('s4', 4);
+  }
+}
+
+// ── STEP 3b ──────────────────────────────────────────
+function pickSubStatus(s) {
+  F.subStatus = s;
+  document.getElementById('tog-confirmed').classList.toggle('sel', s === 'Confirmed');
+  document.getElementById('tog-pending').classList.toggle('sel',   s === 'Pending');
+  errOff('e-subStatus');
+}
+
+function step3bNext() {
+  const txt = [
+    ['subName',  'e-subName'],
+    ['subPhone', 'e-subPhone'],
+  ];
+  let ok = true;
+  txt.forEach(([id, eid]) => {
+    const v = document.getElementById(id).value.trim();
+    if (!v) { errOn(eid); document.getElementById(id).classList.add('err'); ok = false; }
+    else    { errOff(eid); document.getElementById(id).classList.remove('err'); F[id] = v; }
+  });
+  if (!F.subStatus) { errOn('e-subStatus'); ok = false; } else { errOff('e-subStatus'); }
+  if (ok) {
+    F.subDialCode = document.getElementById('sub-prefixCode').textContent.trim();
+    F.subSkipped = false;
+    nav('s4', 4);
+  }
+}
+
+function goAbsent() {
+  F.subSkipped = true;
+  F.subName = ''; F.subCompany = ''; F.subTrade = ''; F.subDialCode = ''; F.subPhone = ''; F.subStatus = '';
+  ['subName','subPhone'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; el.classList.remove('err'); }
+  });
+  if (typeof COUNTRIES !== 'undefined') _setPrefix(COUNTRIES[0], 'sub');
+  ['e-subName','e-subPhone','e-subStatus'].forEach(errOff);
+  document.getElementById('tog-confirmed').classList.remove('sel');
+  document.getElementById('tog-pending').classList.remove('sel');
+  nav('s4', 4);
+}
+
+// ── STEP 4 ───────────────────────────────────────────
+function pickVisitor(choice) {
+  F.hasVisitor = choice;
+  document.getElementById('vyn-yes').className = 'yn-btn' + (choice === 'yes' ? ' yes-sel' : '');
+  document.getElementById('vyn-no').className  = 'yn-btn' + (choice === 'no'  ? ' no-sel'  : '');
+  setTimeout(() => {
+    if (choice === 'yes') {
+      // If they already added visitors (coming back), show the list; else show add form
+      renderVisitorsList();
+      if (F.visitors.length === 0) showAddForm();
+      nav('s4b', 4);
+    } else {
+      if (isPhysicalMeeting()) {
+        renderParkingList();
+        nav('s4c', 4);
+      } else {
+        buildReview();
+        nav('s5', 5);
+      }
+    }
+  }, 180);
+}
+
+function backFromS4() {
+  if (F.attending === 'yes' || F.subSkipped) {
+    // Yes or Absent — back to payment (physical) or step 2 (online)
+    nav(isPhysicalMeeting() ? 's3a' : 's2', isPhysicalMeeting() ? 3 : 2);
+  } else {
+    // Sending sub — back to sub details
+    nav('s3b', 3);
+  }
+}
+
+function backFromS3b() {
+  if (F.attending === 'no' && isPhysicalMeeting()) {
+    // Came through payment — go back to it
+    document.getElementById('progLbl3').innerHTML = 'Payment';
+    nav('s3a', 3);
+  } else {
+    nav('s2', 2);
+  }
+}
+
+// ── STEP 4b — multi-visitor ───────────────────────────
+let _editingIdx = -1;
+
+function editVisitor(i) {
+  const v = F.visitors[i];
+  _editingIdx = i;
+  document.getElementById('vNew-name').value    = v.name;
+  document.getElementById('vNew-contact').value = v.contact;
+  // Restore prefix
+  const country = COUNTRIES.find(c => c.dial === v.prefix && c.iso === (v.prefixIso || c.iso)) || COUNTRIES.find(c => c.dial === v.prefix) || COUNTRIES[0];
+  _setPrefix(country);
+  ['vNew-name','vNew-contact'].forEach(id => document.getElementById(id).classList.remove('err'));
+  ['e-vNew-name','e-vNew-contact'].forEach(errOff);
+  document.getElementById('addVisTitle').textContent = `Edit Visitor ${i + 1}`;
+  document.getElementById('cancelAddBtn').style.display = '';
+  document.getElementById('addVisForm').style.display = 'block';
+  document.getElementById('addAnotherBtn').style.display = 'none';
+  setTimeout(() => document.getElementById('vNew-name').focus(), 120);
+}
+
+function renderVisitorsList() {
+  const list       = document.getElementById('visitorsList');
+  const addAnother = document.getElementById('addAnotherBtn');
+
+  if (F.visitors.length === 0) {
+    list.innerHTML = '';
+    addAnother.style.display = 'none';
+    return;
+  }
+
+  addAnother.style.display = '';
+
+  list.innerHTML = F.visitors.map((v, i) => `
+    <div class="vis-card">
+      <div class="vis-card-head">
+        <div>
+          <div class="vis-card-num">Visitor ${i + 1}</div>
+          <div class="vis-card-name">${escHtml(v.name)}</div>
+          <div class="vis-card-sub">${escHtml((v.prefix || '') + ' ' + v.contact)}</div>
+        </div>
+        <div class="vis-card-actions">
+          <button class="vis-edit"   data-idx="${i}" aria-label="Edit visitor ${i+1}">✎</button>
+          <button class="vis-remove" data-idx="${i}" aria-label="Remove visitor ${i+1}">✕</button>
+        </div>
+      </div>
+    </div>`).join('');
+
+  list.querySelectorAll('.vis-edit').forEach(btn => {
+    btn.addEventListener('click', () => editVisitor(parseInt(btn.dataset.idx)));
+  });
+  list.querySelectorAll('.vis-remove').forEach(btn => {
+    btn.addEventListener('click', () => removeVisitor(parseInt(btn.dataset.idx)));
+  });
+}
+
+function showAddForm() {
+  const form   = document.getElementById('addVisForm');
+  const cancel = document.getElementById('cancelAddBtn');
+
+  // Reset inline form fields
+  ['vNew-name','vNew-contact'].forEach(id => {
+    document.getElementById(id).value = '';
+    document.getElementById(id).classList.remove('err');
+  });
+  ['e-vNew-name','e-vNew-contact'].forEach(errOff);
+  _setPrefix(COUNTRIES[0]); // reset to Singapore
+
+  document.getElementById('addVisTitle').textContent = `Visitor ${F.visitors.length + 1}`;
+  cancel.style.display = F.visitors.length > 0 ? '' : 'none'; // no cancel if first visitor
+  form.style.display = 'block';
+  document.getElementById('addAnotherBtn').style.display = 'none';
+
+  setTimeout(() => document.getElementById('vNew-name').focus(), 120);
+}
+
+function hideAddForm() {
+  _editingIdx = -1;
+  document.getElementById('addVisForm').style.display = 'none';
+  document.getElementById('addAnotherBtn').style.display = F.visitors.length > 0 ? '' : 'none';
+}
+
+function addVisitor() {
+  const fields = [
+    ['vNew-name',    'e-vNew-name'],
+    ['vNew-contact', 'e-vNew-contact'],
+  ];
+  let ok = true;
+  const vals = {};
+  fields.forEach(([id, eid]) => {
+    const v = document.getElementById(id).value.trim();
+    if (!v) { errOn(eid); document.getElementById(id).classList.add('err'); ok = false; }
+    else    { errOff(eid); document.getElementById(id).classList.remove('err'); vals[id] = v; }
+  });
+  if (!ok) return;
+
+  const entry = {
+    name:       vals['vNew-name'],
+    prefix:     document.getElementById('vNew-prefixCode').textContent.trim(),
+    prefixIso:  document.getElementById('vNew-prefixFlag').alt.toLowerCase(),
+    contact:    vals['vNew-contact'],
+    invitedBy:  F.member,
+  };
+  if (_editingIdx >= 0) {
+    F.visitors[_editingIdx] = entry;
+    _editingIdx = -1;
+  } else {
+    F.visitors.push(entry);
+  }
+
+  errOff('e-visitors');
+  renderVisitorsList();
+  hideAddForm();
+}
+
+function removeVisitor(i) {
+  F.visitors.splice(i, 1);
+  renderVisitorsList();
+  if (F.visitors.length === 0) showAddForm(); // must have at least one — re-open form
+}
+
+function step4bNext() {
+  if (F.visitors.length === 0) { errOn('e-visitors'); return; }
+  errOff('e-visitors');
+  if (isPhysicalMeeting()) {
+    renderParkingList();
+    nav('s4c', 4);
+  } else {
+    buildReview();
+    nav('s5', 5);
+  }
+}
+
+// ── STEP 4c — Parking Coupons ────────────────────────
+function renderParkingList() {
+  const list = document.getElementById('parkingList');
+
+  // Build the list of people who might need coupons:
+  // - member themselves (if attending or sending sub — not if absent)
+  // - each visitor (if any)
+  const attendees = [];
+  if (!F.subSkipped) {
+    // Attending or sending sub — member/sub needs coupon
+    const label = F.attending === 'yes' ? F.member : (F.subName || 'Substitute');
+    const sub   = F.attending === 'no'  ? 'Sub' : 'Member';
+    attendees.push({ key: '__member__', label, sub });
+  }
+  if (F.hasVisitor === 'yes') {
+    F.visitors.forEach((v, i) => {
+      attendees.push({ key: '__visitor_' + i + '__', label: v.name, sub: v.company || 'Visitor' });
+    });
+  }
+
+  list.innerHTML = attendees.map(a => {
+    const yes = F.parkingCoupons[a.key] === true;
+    const no  = F.parkingCoupons[a.key] === false;
+    return `
+    <div class="park-row">
+      <div>
+        <div class="park-label">${escHtml(a.label)}</div>
+        <div class="park-sublabel">${escHtml(a.sub)}</div>
+      </div>
+      <div class="park-toggles">
+        <button class="park-tog${yes ? ' yes' : ''}" onclick="toggleParking('${a.key}', true)">Yes</button>
+        <button class="park-tog${no  ? ' no'  : ''}" onclick="toggleParking('${a.key}', false)">No</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  if (attendees.length === 0) {
+    list.innerHTML = '<p style="color:var(--text-muted);font-size:14px;margin-bottom:16px;">No attendees to assign coupons to.</p>';
+  }
+}
+
+function toggleParking(key, want) {
+  F.parkingCoupons[key] = want;
+  renderParkingList();
+}
+
+function step4cNext() {
+  buildReview();
+  nav('s5', 5);
+}
+
+function backFromS4c() {
+  if (F.hasVisitor === 'yes') {
+    renderVisitorsList();
+    hideAddForm();
+    nav('s4b', 4);
+  } else {
+    nav('s4', 4);
+  }
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── STEP 5 — Review ──────────────────────────────────
+function buildReview() {
+  const wrap = document.getElementById('reviewBody');
+
+  const sections = [
+    {
+      title: 'Identity',
+      edit: () => nav('s1', 1),
+      rows: [
+        ['Name',    F.member],
+        ['Date of meeting', F.weekOf],
+      ]
+    },
+    F.attending === 'yes'
+      ? {
+          title: 'Attendance & Payment',
+          edit: () => nav('s3a', 3),
+          rows: [
+            ['Attending', 'Yes ✅'],
+            ['Payment',   F.payment],
+          ]
+        }
+      : F.subSkipped
+        ? {
+            title: 'Attendance',
+            edit: () => nav('s3b', 3),
+            rows: [
+              ['Attending', 'No — Absent, no sub ❌'],
+              ['Payment',   F.payment || '—'],
+            ]
+          }
+        : {
+            title: 'Attendance & Substitute',
+            edit: () => nav('s3b', 3),
+            rows: [
+              ['Attending',   'No — Sending Sub ❌'],
+              ['Payment',     F.payment || '—'],
+              ['Sub Name',  F.subName],
+              ['Sub Phone', (F.subDialCode ? F.subDialCode + ' ' : '') + F.subPhone],
+              ['Sub Status',  F.subStatus],
+            ]
+          },
+    F.hasVisitor === 'yes'
+      ? {
+          title: `Visitors (${F.visitors.length})`,
+          edit: () => nav('s4b', 4),
+          rows: F.visitors.flatMap((v, i) => [
+            [`#${i+1} Name`,    v.name],
+            [`#${i+1} Contact`, (v.prefix || '') + ' ' + v.contact],
+          ])
+        }
+      : {
+          title: 'Visitors',
+          edit: () => nav('s4', 4),
+          rows: [['Bringing visitor', 'No 🚫']]
+        },
+    ...(isPhysicalMeeting() ? [{
+      title: 'Parking Coupons 🅿️',
+      edit: () => { renderParkingList(); nav('s4c', 4); },
+      rows: (() => {
+        const rows = [];
+        if (!F.subSkipped) {
+          const who = F.attending === 'yes' ? F.member : (F.subName || 'Sub');
+          const val = F.parkingCoupons['__member__'];
+          rows.push([who, val === true ? 'Yes ✅' : val === false ? 'No 🚫' : 'Not answered']);
+        }
+        F.visitors.forEach((v, i) => {
+          const val = F.parkingCoupons['__visitor_' + i + '__'];
+          rows.push([v.name, val === true ? 'Yes ✅' : val === false ? 'No 🚫' : 'Not answered']);
+        });
+        if (rows.length === 0) rows.push(['Coupons', 'N/A']);
+        return rows;
+      })()
+    }] : [])
+  ];
+
+  wrap.innerHTML = sections.map((sec, i) => `
+    <div class="review-card">
+      <div class="review-card-head">
+        <span class="review-card-title">${sec.title}</span>
+        <button class="review-edit" data-sec="${i}">Edit</button>
+      </div>
+      ${sec.rows.map(([k,v]) => `
+        <div class="review-row">
+          <span class="rkey">${k}</span>
+          <span class="rval">${v || '—'}</span>
+        </div>`).join('')}
+    </div>`).join('');
+
+  // Attach edit handlers (avoid inline onclick with closures)
+  wrap.querySelectorAll('.review-edit').forEach(btn => {
+    const i = parseInt(btn.dataset.sec);
+    btn.addEventListener('click', () => sections[i].edit());
+  });
+}
+
+function backFromReview() {
+  if (isPhysicalMeeting()) {
+    renderParkingList();
+    nav('s4c', 4);
+  } else if (F.hasVisitor === 'yes') {
+    renderVisitorsList();
+    hideAddForm();
+    nav('s4b', 4);
+  } else {
+    nav('s4', 4);
+  }
+}
+
+// ── SUBMIT ───────────────────────────────────────────
+async function submitForm() {
+  document.getElementById('submitBtn').disabled = true;
+  nav('sLoading', 5);
+
+  const payload = {
+    timestamp:      new Date().toISOString(),
+    weekOf:         F.weekOf,
+    memberName:     F.member,
+    attending:      F.attending,
+    paymentStatus:  F.attending === 'yes'  ? F.payment    : '',
+    subName:        F.attending === 'no'   ? F.subName      : '',
+    subCompany:     F.attending === 'no'   ? F.subCompany   : '',
+    subTrade:       F.attending === 'no'   ? F.subTrade     : '',
+    subDialCode:    F.attending === 'no'   ? F.subDialCode  : '',
+    subPhone:       F.attending === 'no'   ? F.subPhone     : '',
+    subStatus:      F.attending === 'no'   ? F.subStatus    : '',
+    hasVisitor:      F.hasVisitor,
+    visitorCount:    F.hasVisitor === 'yes' ? F.visitors.length : 0,
+    visitors:        F.hasVisitor === 'yes' ? F.visitors : [],
+    visitorInvitedBy: F.hasVisitor === 'yes' ? F.member : '',
+    parkingCoupons:  isPhysicalMeeting() ? (() => {
+      const names = [];
+      if (F.parkingCoupons['__member__'] === true)
+        names.push(F.attending === 'yes' ? F.member : (F.subName || 'Sub'));
+      F.visitors.forEach((v, i) => {
+        if (F.parkingCoupons['__visitor_' + i + '__'] === true) names.push(v.name);
+      });
+      return names.join(', ') || 'None';
+    })() : '',
+  };
+
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method:  'POST',
+      mode:    'no-cors',          // response will be opaque — that's expected
+      headers: { 'Content-Type': 'text/plain' },
+      body:    JSON.stringify(payload)
+    });
+    // no-cors: can't read response body, optimistically treat as success
+    showSuccess();
+  } catch (err) {
+    document.getElementById('submitBtn').disabled = false;
+    nav('s5', 5);
+    toast('Network error — check your connection and try again.');
+  }
+}
+
+function showSuccess() {
+  document.getElementById('successMsg').innerHTML =
+    `Thanks <strong>${F.member}</strong> — your check-in for ` +
+    `<strong>${F.weekOf}</strong> has been recorded. See you at the meeting! 🤝`;
+  nav('sSuccess', 5);
+}
+
+// ── CONTACT PICKER API ────────────────────────────────
+// Show the button only on browsers that support the API (Android Chrome, iOS Safari 14.5+)
+if ('contacts' in navigator && 'ContactsManager' in window) {
+  document.getElementById('contactsPickerBtn').style.display = 'flex';
+}
+
+async function pickFromContacts() {
+  try {
+    const results = await navigator.contacts.select(['name', 'tel'], { multiple: false });
+    if (!results || results.length === 0) return;
+
+    const contact = results[0];
+    const tels    = (contact.tel || []).map(t => t.replace(/\s+/g, '').trim()).filter(Boolean);
+    const names   = (contact.name || []).filter(Boolean);
+
+    if (tels.length === 0) { toast('No phone number found for this contact.'); return; }
+
+    // If contact has multiple numbers — let user pick one
+    const chosen = tels.length === 1 ? tels[0] : await _pickNumber(tels, names[0] || '');
+    if (!chosen) return;
+
+    // Try to split a leading country code from the number
+    _applyContactNumber(chosen);
+
+    // Auto-fill name field if still empty
+    const nameField = document.getElementById('vNew-name');
+    if (nameField && !nameField.value.trim() && names[0]) {
+      nameField.value = names[0];
+      nameField.classList.remove('err');
+      errOff('e-vNew-name');
+    }
+
+    // Clear any error on contact field
+    document.getElementById('vNew-contact').classList.remove('err');
+    errOff('e-vNew-contact');
+
+  } catch (err) {
+    if (err.name !== 'AbortError') toast('Could not access contacts.');
+  }
+}
+
+function _applyContactNumber(raw) {
+  // Strip everything except digits and leading +
+  const cleaned = raw.replace(/[^\d+]/g, '');
+
+  // Try to match a known dial code at the start (longest match first)
+  const sorted = [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length);
+  const match  = sorted.find(c => cleaned.startsWith(c.dial));
+
+  if (match) {
+    _setPrefix(match);
+    document.getElementById('vNew-contact').value = cleaned.slice(match.dial.length);
+  } else {
+    // No recognised prefix — just put the whole number in the field
+    document.getElementById('vNew-contact').value = cleaned;
+  }
+}
+
+// Mini sheet to pick one number when a contact has multiple
+function _pickNumber(tels, contactName) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.65);display:flex;align-items:flex-end;justify-content:center;';
+
+    const sheet = document.createElement('div');
+    sheet.style.cssText = 'width:100%;max-width:480px;background:var(--bg2);border-radius:20px 20px 0 0;border-top:1.5px solid var(--border);padding:18px 0 32px;';
+
+    const title = contactName ? `<div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);padding:0 18px 12px;">${contactName} — pick a number</div>` : '';
+
+    sheet.innerHTML = title + tels.map((t, i) =>
+      `<button onclick="this.closest('div[style]').parentNode.__resolve('${t}')"
+         style="display:flex;align-items:center;gap:12px;padding:13px 18px;width:100%;background:none;border:none;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;text-align:left;">
+        <span style="font-size:18px;">📱</span>${t}
+      </button>`
+    ).join('') +
+    `<button onclick="this.closest('div[style]').parentNode.__resolve(null)"
+       style="display:block;margin:8px 18px 0;padding:12px;width:calc(100% - 36px);background:none;border:1.5px solid var(--border);border-radius:8px;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;">
+      Cancel
+    </button>`;
+
+    overlay.__resolve = val => { document.body.removeChild(overlay); resolve(val); };
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.__resolve(null); });
+    overlay.appendChild(sheet);
+    document.body.appendChild(overlay);
+  });
+}
+
+// ── COUNTRY CODE PICKER ───────────────────────────────
+const COUNTRIES = [
+  { iso:'sg', name:'Singapore',                dial:'+65'  },
+  { iso:'af', name:'Afghanistan',               dial:'+93'  },
+  { iso:'al', name:'Albania',                   dial:'+355' },
+  { iso:'dz', name:'Algeria',                   dial:'+213' },
+  { iso:'ad', name:'Andorra',                   dial:'+376' },
+  { iso:'ao', name:'Angola',                    dial:'+244' },
+  { iso:'ag', name:'Antigua and Barbuda',       dial:'+1'   },
+  { iso:'ar', name:'Argentina',                 dial:'+54'  },
+  { iso:'am', name:'Armenia',                   dial:'+374' },
+  { iso:'au', name:'Australia',                 dial:'+61'  },
+  { iso:'at', name:'Austria',                   dial:'+43'  },
+  { iso:'az', name:'Azerbaijan',                dial:'+994' },
+  { iso:'bs', name:'Bahamas',                   dial:'+1'   },
+  { iso:'bh', name:'Bahrain',                   dial:'+973' },
+  { iso:'bd', name:'Bangladesh',                dial:'+880' },
+  { iso:'bb', name:'Barbados',                  dial:'+1'   },
+  { iso:'by', name:'Belarus',                   dial:'+375' },
+  { iso:'be', name:'Belgium',                   dial:'+32'  },
+  { iso:'bz', name:'Belize',                    dial:'+501' },
+  { iso:'bj', name:'Benin',                     dial:'+229' },
+  { iso:'bt', name:'Bhutan',                    dial:'+975' },
+  { iso:'bo', name:'Bolivia',                   dial:'+591' },
+  { iso:'ba', name:'Bosnia and Herzegovina',    dial:'+387' },
+  { iso:'bw', name:'Botswana',                  dial:'+267' },
+  { iso:'br', name:'Brazil',                    dial:'+55'  },
+  { iso:'bn', name:'Brunei',                    dial:'+673' },
+  { iso:'bg', name:'Bulgaria',                  dial:'+359' },
+  { iso:'bf', name:'Burkina Faso',              dial:'+226' },
+  { iso:'bi', name:'Burundi',                   dial:'+257' },
+  { iso:'kh', name:'Cambodia',                  dial:'+855' },
+  { iso:'cm', name:'Cameroon',                  dial:'+237' },
+  { iso:'ca', name:'Canada',                    dial:'+1'   },
+  { iso:'cv', name:'Cape Verde',                dial:'+238' },
+  { iso:'cf', name:'Central African Republic',  dial:'+236' },
+  { iso:'td', name:'Chad',                      dial:'+235' },
+  { iso:'cl', name:'Chile',                     dial:'+56'  },
+  { iso:'cn', name:'China',                     dial:'+86'  },
+  { iso:'co', name:'Colombia',                  dial:'+57'  },
+  { iso:'km', name:'Comoros',                   dial:'+269' },
+  { iso:'cg', name:'Congo',                     dial:'+242' },
+  { iso:'cd', name:'Congo (DR)',                dial:'+243' },
+  { iso:'cr', name:'Costa Rica',                dial:'+506' },
+  { iso:'hr', name:'Croatia',                   dial:'+385' },
+  { iso:'cu', name:'Cuba',                      dial:'+53'  },
+  { iso:'cy', name:'Cyprus',                    dial:'+357' },
+  { iso:'cz', name:'Czech Republic',            dial:'+420' },
+  { iso:'dk', name:'Denmark',                   dial:'+45'  },
+  { iso:'dj', name:'Djibouti',                  dial:'+253' },
+  { iso:'do', name:'Dominican Republic',        dial:'+1'   },
+  { iso:'ec', name:'Ecuador',                   dial:'+593' },
+  { iso:'eg', name:'Egypt',                     dial:'+20'  },
+  { iso:'sv', name:'El Salvador',               dial:'+503' },
+  { iso:'gq', name:'Equatorial Guinea',         dial:'+240' },
+  { iso:'er', name:'Eritrea',                   dial:'+291' },
+  { iso:'ee', name:'Estonia',                   dial:'+372' },
+  { iso:'sz', name:'Eswatini',                  dial:'+268' },
+  { iso:'et', name:'Ethiopia',                  dial:'+251' },
+  { iso:'fj', name:'Fiji',                      dial:'+679' },
+  { iso:'fi', name:'Finland',                   dial:'+358' },
+  { iso:'fr', name:'France',                    dial:'+33'  },
+  { iso:'ga', name:'Gabon',                     dial:'+241' },
+  { iso:'gm', name:'Gambia',                    dial:'+220' },
+  { iso:'ge', name:'Georgia',                   dial:'+995' },
+  { iso:'de', name:'Germany',                   dial:'+49'  },
+  { iso:'gh', name:'Ghana',                     dial:'+233' },
+  { iso:'gr', name:'Greece',                    dial:'+30'  },
+  { iso:'gt', name:'Guatemala',                 dial:'+502' },
+  { iso:'gn', name:'Guinea',                    dial:'+224' },
+  { iso:'gy', name:'Guyana',                    dial:'+592' },
+  { iso:'ht', name:'Haiti',                     dial:'+509' },
+  { iso:'hn', name:'Honduras',                  dial:'+504' },
+  { iso:'hk', name:'Hong Kong',                 dial:'+852' },
+  { iso:'hu', name:'Hungary',                   dial:'+36'  },
+  { iso:'is', name:'Iceland',                   dial:'+354' },
+  { iso:'in', name:'India',                     dial:'+91'  },
+  { iso:'id', name:'Indonesia',                 dial:'+62'  },
+  { iso:'ir', name:'Iran',                      dial:'+98'  },
+  { iso:'iq', name:'Iraq',                      dial:'+964' },
+  { iso:'ie', name:'Ireland',                   dial:'+353' },
+  { iso:'il', name:'Israel',                    dial:'+972' },
+  { iso:'it', name:'Italy',                     dial:'+39'  },
+  { iso:'jm', name:'Jamaica',                   dial:'+1'   },
+  { iso:'jp', name:'Japan',                     dial:'+81'  },
+  { iso:'jo', name:'Jordan',                    dial:'+962' },
+  { iso:'kz', name:'Kazakhstan',                dial:'+7'   },
+  { iso:'ke', name:'Kenya',                     dial:'+254' },
+  { iso:'ki', name:'Kiribati',                  dial:'+686' },
+  { iso:'xk', name:'Kosovo',                    dial:'+383' },
+  { iso:'kw', name:'Kuwait',                    dial:'+965' },
+  { iso:'kg', name:'Kyrgyzstan',                dial:'+996' },
+  { iso:'la', name:'Laos',                      dial:'+856' },
+  { iso:'lv', name:'Latvia',                    dial:'+371' },
+  { iso:'lb', name:'Lebanon',                   dial:'+961' },
+  { iso:'ls', name:'Lesotho',                   dial:'+266' },
+  { iso:'lr', name:'Liberia',                   dial:'+231' },
+  { iso:'ly', name:'Libya',                     dial:'+218' },
+  { iso:'li', name:'Liechtenstein',             dial:'+423' },
+  { iso:'lt', name:'Lithuania',                 dial:'+370' },
+  { iso:'lu', name:'Luxembourg',                dial:'+352' },
+  { iso:'mg', name:'Madagascar',                dial:'+261' },
+  { iso:'mw', name:'Malawi',                    dial:'+265' },
+  { iso:'my', name:'Malaysia',                  dial:'+60'  },
+  { iso:'mv', name:'Maldives',                  dial:'+960' },
+  { iso:'ml', name:'Mali',                      dial:'+223' },
+  { iso:'mt', name:'Malta',                     dial:'+356' },
+  { iso:'mh', name:'Marshall Islands',          dial:'+692' },
+  { iso:'mr', name:'Mauritania',                dial:'+222' },
+  { iso:'mu', name:'Mauritius',                 dial:'+230' },
+  { iso:'mx', name:'Mexico',                    dial:'+52'  },
+  { iso:'fm', name:'Micronesia',                dial:'+691' },
+  { iso:'md', name:'Moldova',                   dial:'+373' },
+  { iso:'mc', name:'Monaco',                    dial:'+377' },
+  { iso:'mn', name:'Mongolia',                  dial:'+976' },
+  { iso:'me', name:'Montenegro',                dial:'+382' },
+  { iso:'ma', name:'Morocco',                   dial:'+212' },
+  { iso:'mz', name:'Mozambique',                dial:'+258' },
+  { iso:'mm', name:'Myanmar',                   dial:'+95'  },
+  { iso:'na', name:'Namibia',                   dial:'+264' },
+  { iso:'np', name:'Nepal',                     dial:'+977' },
+  { iso:'nl', name:'Netherlands',               dial:'+31'  },
+  { iso:'nz', name:'New Zealand',               dial:'+64'  },
+  { iso:'ni', name:'Nicaragua',                 dial:'+505' },
+  { iso:'ne', name:'Niger',                     dial:'+227' },
+  { iso:'ng', name:'Nigeria',                   dial:'+234' },
+  { iso:'mk', name:'North Macedonia',           dial:'+389' },
+  { iso:'kp', name:'North Korea',               dial:'+850' },
+  { iso:'no', name:'Norway',                    dial:'+47'  },
+  { iso:'om', name:'Oman',                      dial:'+968' },
+  { iso:'pk', name:'Pakistan',                  dial:'+92'  },
+  { iso:'pw', name:'Palau',                     dial:'+680' },
+  { iso:'ps', name:'Palestine',                 dial:'+970' },
+  { iso:'pa', name:'Panama',                    dial:'+507' },
+  { iso:'pg', name:'Papua New Guinea',          dial:'+675' },
+  { iso:'py', name:'Paraguay',                  dial:'+595' },
+  { iso:'pe', name:'Peru',                      dial:'+51'  },
+  { iso:'ph', name:'Philippines',               dial:'+63'  },
+  { iso:'pl', name:'Poland',                    dial:'+48'  },
+  { iso:'pt', name:'Portugal',                  dial:'+351' },
+  { iso:'qa', name:'Qatar',                     dial:'+974' },
+  { iso:'ro', name:'Romania',                   dial:'+40'  },
+  { iso:'ru', name:'Russia',                    dial:'+7'   },
+  { iso:'rw', name:'Rwanda',                    dial:'+250' },
+  { iso:'sa', name:'Saudi Arabia',              dial:'+966' },
+  { iso:'sn', name:'Senegal',                   dial:'+221' },
+  { iso:'rs', name:'Serbia',                    dial:'+381' },
+  { iso:'sc', name:'Seychelles',                dial:'+248' },
+  { iso:'sl', name:'Sierra Leone',              dial:'+232' },
+  { iso:'sk', name:'Slovakia',                  dial:'+421' },
+  { iso:'si', name:'Slovenia',                  dial:'+386' },
+  { iso:'sb', name:'Solomon Islands',           dial:'+677' },
+  { iso:'so', name:'Somalia',                   dial:'+252' },
+  { iso:'za', name:'South Africa',              dial:'+27'  },
+  { iso:'ss', name:'South Sudan',               dial:'+211' },
+  { iso:'kr', name:'South Korea',               dial:'+82'  },
+  { iso:'es', name:'Spain',                     dial:'+34'  },
+  { iso:'lk', name:'Sri Lanka',                 dial:'+94'  },
+  { iso:'sd', name:'Sudan',                     dial:'+249' },
+  { iso:'sr', name:'Suriname',                  dial:'+597' },
+  { iso:'se', name:'Sweden',                    dial:'+46'  },
+  { iso:'ch', name:'Switzerland',               dial:'+41'  },
+  { iso:'sy', name:'Syria',                     dial:'+963' },
+  { iso:'tw', name:'Taiwan',                    dial:'+886' },
+  { iso:'tj', name:'Tajikistan',                dial:'+992' },
+  { iso:'tz', name:'Tanzania',                  dial:'+255' },
+  { iso:'th', name:'Thailand',                  dial:'+66'  },
+  { iso:'tl', name:'Timor-Leste',               dial:'+670' },
+  { iso:'tg', name:'Togo',                      dial:'+228' },
+  { iso:'to', name:'Tonga',                     dial:'+676' },
+  { iso:'tt', name:'Trinidad and Tobago',       dial:'+1'   },
+  { iso:'tn', name:'Tunisia',                   dial:'+216' },
+  { iso:'tr', name:'Turkey',                    dial:'+90'  },
+  { iso:'tm', name:'Turkmenistan',              dial:'+993' },
+  { iso:'tv', name:'Tuvalu',                    dial:'+688' },
+  { iso:'ug', name:'Uganda',                    dial:'+256' },
+  { iso:'ua', name:'Ukraine',                   dial:'+380' },
+  { iso:'ae', name:'United Arab Emirates',      dial:'+971' },
+  { iso:'gb', name:'United Kingdom',            dial:'+44'  },
+  { iso:'us', name:'United States',             dial:'+1'   },
+  { iso:'uy', name:'Uruguay',                   dial:'+598' },
+  { iso:'uz', name:'Uzbekistan',                dial:'+998' },
+  { iso:'vu', name:'Vanuatu',                   dial:'+678' },
+  { iso:'ve', name:'Venezuela',                 dial:'+58'  },
+  { iso:'vn', name:'Vietnam',                   dial:'+84'  },
+  { iso:'ye', name:'Yemen',                     dial:'+967' },
+  { iso:'zm', name:'Zambia',                    dial:'+260' },
+  { iso:'zw', name:'Zimbabwe',                  dial:'+263' },
+];
+
+let _cpFiltered = COUNTRIES;
+
+function _flagUrl(iso) {
+  return 'https://flagcdn.com/w40/' + iso + '.png';
+}
+
+let _cpTarget = 'visitor'; // 'visitor' or 'sub'
+
+function _setPrefix(country, target) {
+  const pfx = (target !== undefined ? target : _cpTarget) === 'sub' ? 'sub' : 'vNew';
+  const img = document.getElementById(pfx + '-prefixFlag');
+  img.src = _flagUrl(country.iso);
+  img.alt = country.iso.toUpperCase();
+  document.getElementById(pfx + '-prefixCode').textContent = country.dial;
+}
+
+function openCountryPicker(target) {
+  _cpTarget = target || 'visitor';
+  const overlay = document.getElementById('cpOverlay');
+  const search  = document.getElementById('cpSearch');
+  _cpFiltered = COUNTRIES;
+  _renderCpList(COUNTRIES);
+  search.value = '';
+  overlay.classList.add('open');
+  setTimeout(() => search.focus(), 250);
+}
+
+function closeCountryPicker() {
+  document.getElementById('cpOverlay').classList.remove('open');
+}
+
+function onCpOverlayClick(e) {
+  if (e.target === document.getElementById('cpOverlay')) closeCountryPicker();
+}
+
+function filterCountries(q) {
+  const term = q.toLowerCase().trim();
+  _cpFiltered = term
+    ? COUNTRIES.filter(c => c.name.toLowerCase().includes(term) || c.dial.includes(term))
+    : COUNTRIES;
+  _renderCpList(_cpFiltered);
+}
+
+function _renderCpList(list) {
+  const pfx        = _cpTarget === 'sub' ? 'sub' : 'vNew';
+  const currentIso = document.getElementById(pfx + '-prefixFlag').alt.toLowerCase();
+  document.getElementById('cpList').innerHTML = list.map(c =>
+    `<button type="button" class="cp-item${c.iso === currentIso ? ' selected' : ''}"
+       onclick="selectCountry(${COUNTRIES.indexOf(c)})">
+      <img class="cp-flag" src="${_flagUrl(c.iso)}" alt="${c.iso.toUpperCase()}" loading="lazy">
+      <span class="cp-cname">${c.name}</span>
+      <span class="cp-dial">${c.dial}</span>
+    </button>`
+  ).join('');
+}
+
+function selectCountry(idx) {
+  _setPrefix(COUNTRIES[idx], _cpTarget);
+  closeCountryPicker();
+  const focusId = _cpTarget === 'sub' ? 'subPhone' : 'vNew-contact';
+  document.getElementById(focusId).focus();
+}
+
+// ── RESET ────────────────────────────────────────────
+function resetAll() {
+  const keep = F.member;
+
+  // Clear state
+  Object.keys(F).forEach(k => { F[k] = typeof F[k] === 'object' ? [] : ''; });
+  F.member         = keep;
+  F.weekOf         = calcWeekOf();
+  F.visitors       = [];
+  F.subSkipped     = false;
+  F.parkingCoupons = {};
+
+  // Clear UI inputs
+  document.getElementById('memberSelect').value = keep;
+  document.querySelectorAll('input[name="pay"]').forEach(r => r.checked = false);
+  ['subName','subPhone'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  // Reset multi-visitor UI
+  document.getElementById('visitorsList').innerHTML = '';
+  document.getElementById('addAnotherBtn').style.display = 'none';
+  document.getElementById('addVisForm').style.display = 'block';
+  ['vNew-name','vNew-contact'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; el.classList.remove('err'); }
+  });
+  if (typeof COUNTRIES !== 'undefined') {
+    _setPrefix(COUNTRIES[0], 'visitor');
+    _setPrefix(COUNTRIES[0], 'sub');
+  }
+  ['yn-yes','yn-sub','yn-absent','vyn-yes','vyn-no'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.className = 'yn-btn';
+  });
+  ['tog-confirmed','tog-pending'].forEach(id => {
+    document.getElementById(id).classList.remove('sel');
+  });
+
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('weekDisplay').textContent = F.weekOf + (isPhysicalMeeting() ? ' (Physical)' : ' (Online)');
+  nav('s1', 1);
+}
+
+// ── HELPERS ──────────────────────────────────────────
+function errOn(id)  { const e = document.getElementById(id); if (e) e.classList.add('on'); }
+function errOff(id) { const e = document.getElementById(id); if (e) e.classList.remove('on'); }
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 4500);
+}
+
+// ── Service Worker registration ───────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // SW registration failure is non-fatal — app still works normally
+    });
+  });
+}
+</script>
+
+<!-- ── Country code picker overlay ── -->
+<div class="cp-overlay" id="cpOverlay" onclick="onCpOverlayClick(event)">
+  <div class="cp-sheet">
+    <div class="cp-sheet-title">Select Country Code</div>
+    <div class="cp-search-wrap">
+      <input class="cp-search" id="cpSearch" type="text" placeholder="Search country or code…"
+             oninput="filterCountries(this.value)" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="cp-list" id="cpList"></div>
+  </div>
+</div>
+</body>
+</html>

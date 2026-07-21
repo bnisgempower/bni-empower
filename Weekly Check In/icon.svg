@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Full gold background — works as Android maskable icon -->
+  <rect width="512" height="512" fill="#c0392b"/>
+  <!-- Dark "B" centred in the safe zone -->
+  <text
+    x="256" y="375"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="340" font-weight="900"
+    text-anchor="middle"
+    fill="#0d0d0d">B</text>
+</svg>

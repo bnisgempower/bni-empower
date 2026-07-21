@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#c0392b">
+  <title>BNI Empower — New Member Onboarding</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --red:         #c0392b;
+      --red-dark:    #962d22;
+      --red-dim:     rgba(192,57,43,.12);
+      --red-border:  rgba(192,57,43,.40);
+      --bg:          #0d0d0d;
+      --bg2:         #141414;
+      --surface:     #1c1c1c;
+      --surface2:    #252525;
+      --border:      #2e2e2e;
+      --text:        #f0ede8;
+      --text-muted:  #888;
+      --success:     #5cc976;
+      --danger:      #e05c5c;
+      --r:           12px;
+      --tr:          200ms ease;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-tap-highlight-color: transparent; scroll-behavior: smooth; }
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-bottom: max(env(safe-area-inset-bottom), 32px);
+    }
+
+    /* ── Header ── */
+    .header {
+      width: 100%;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: blur(12px);
+    }
+    .logo-mark {
+      width: 36px; height: 36px;
+      background: var(--red);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 18px; color: #000;
+      flex-shrink: 0;
+    }
+    .header-text h1 { font-size: 15px; font-weight: 700; line-height: 1.2; }
+    .header-text p  { font-size: 12px; color: var(--text-muted); }
+
+    /* ── Main content ── */
+    .main {
+      width: 100%;
+      max-width: 520px;
+      padding: 24px 16px 0;
+    }
+
+    /* ── Progress bar ── */
+    .progress-bar {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 24px;
+    }
+    .progress-bar span {
+      flex: 1;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border);
+      transition: background var(--tr);
+    }
+    .progress-bar span.done { background: var(--red); }
+    .progress-bar span.active { background: rgba(192,57,43,.5); }
+
+    /* ── Section card ── */
+    .section-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--red);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title .step-badge {
+      background: var(--red-dim);
+      border: 1px solid var(--red-border);
+      color: var(--red);
+      font-size: 11px;
+      font-weight: 700;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* ── Form fields ── */
+    .field { margin-bottom: 14px; }
+    .field:last-child { margin-bottom: 0; }
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .field label .req { color: var(--red); margin-left: 2px; }
+    .field input,
+    .field select,
+    .field textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 15px;
+      padding: 11px 13px;
+      outline: none;
+      transition: border-color var(--tr);
+      -webkit-appearance: none;
+    }
+    .field input::placeholder,
+    .field textarea::placeholder { color: #555; }
+    .field input:focus,
+    .field select:focus,
+    .field textarea:focus {
+      border-color: var(--red);
+    }
+    .field select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23888' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 36px;
+    }
+    .field textarea { resize: none; min-height: 72px; line-height: 1.5; }
+
+    /* Two-column row */
+    .field-row { display: flex; gap: 10px; }
+    .field-row .field { flex: 1; }
+
+    /* ── Logo upload ── */
+    .logo-upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 24px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color var(--tr), background var(--tr);
+      position: relative;
+    }
+    .logo-upload-zone:hover,
+    .logo-upload-zone.drag-over {
+      border-color: var(--red);
+      background: var(--red-dim);
+    }
+    .logo-upload-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .logo-upload-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+      line-height: 1;
+    }
+    .logo-upload-zone p {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+    .logo-upload-zone strong { color: var(--text); }
+    .logo-upload-zone .hint { font-size: 11px; margin-top: 4px; color: #555; }
+
+    /* Preview state */
+    .logo-preview-wrap {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-preview-wrap.visible { display: flex; }
+    .logo-preview-wrap img {
+      max-height: 96px;
+      max-width: 100%;
+      border-radius: 6px;
+      object-fit: contain;
+    }
+    .logo-preview-wrap .file-name {
+      font-size: 12px;
+      color: var(--text-muted);
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .logo-remove {
+      font-size: 12px;
+      color: var(--danger);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .logo-remove:hover { background: rgba(224,92,92,.15); }
+
+    /* ── Navigation buttons ── */
+    .nav-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      margin-bottom: 24px;
+    }
+    .btn {
+      flex: 1;
+      padding: 14px;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: opacity var(--tr), transform var(--tr);
+      user-select: none;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: var(--red); color: #fff; }
+    .btn-primary:hover { background: var(--red-dark); }
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--red); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+    /* ── Step pages ── */
+    .step-page { display: none; }
+    .step-page.active { display: block; }
+
+    /* ── Power Team Preview ── */
+    .pt-toggle-btn {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--red-border);
+      border-radius: var(--r);
+      color: var(--red);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 13px 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      transition: background var(--tr), border-color var(--tr);
+    }
+    .pt-toggle-btn:hover { background: var(--red-dim); }
+    .pt-toggle-btn .pt-arrow { font-size: 11px; transition: transform var(--tr); }
+    .pt-toggle-btn.open .pt-arrow { transform: rotate(180deg); }
+
+    .pt-panel {
+      display: none;
+      margin-bottom: 16px;
+    }
+    .pt-panel.open { display: block; }
+
+    .pt-loading {
+      text-align: center;
+      padding: 24px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .pt-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 420px) {
+      .pt-grid { grid-template-columns: 1fr; }
+    }
+
+    .pt-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      overflow: hidden;
+    }
+    .pt-card-header {
+      background: var(--red);
+      color: #000;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 8px 12px;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+    }
+    .pt-trades {
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .pt-trade {
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      line-height: 1.3;
+    }
+    .pt-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .pt-dot.avail   { background: var(--success); }
+    .pt-dot.unavail { background: var(--danger); }
+    .pt-trade.avail   { color: var(--text); }
+    .pt-trade.unavail { color: var(--text-muted); text-decoration: line-through; }
+
+    .pt-legend {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 10px;
+      padding: 0 4px;
+    }
+    .pt-legend span { display: flex; align-items: center; gap: 5px; }
+    .pt-legend .pt-dot { width: 8px; height: 8px; }
+
+    /* ── Intro page ── */
+    .intro-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 28px 20px;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .intro-logo {
+      width: 64px; height: 64px;
+      background: var(--red);
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 30px; color: #000;
+      margin: 0 auto 16px;
+    }
+    .intro-card h2 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    .intro-card p  { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+    .intro-card .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 20px 0;
+    }
+    .checklist { list-style: none; text-align: left; }
+    .checklist li {
+      font-size: 13px;
+      color: var(--text-muted);
+      padding: 5px 0;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.4;
+    }
+    .checklist li::before {
+      content: "✓";
+      color: var(--success);
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* ── Success screen ── */
+    .success-screen {
+      text-align: center;
+      padding: 40px 20px;
+    }
+    .success-icon {
+      width: 72px; height: 72px;
+      background: rgba(92,201,118,.15);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 34px;
+      margin: 0 auto 20px;
+    }
+    .success-screen h2 { font-size: 22px; font-weight: 700; margin-bottom: 10px; }
+    .success-screen p  { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+
+    /* ── Error banner ── */
+    .error-banner {
+      display: none;
+      background: rgba(224,92,92,.15);
+      border: 1px solid rgba(224,92,92,.4);
+      border-radius: 8px;
+      padding: 11px 14px;
+      font-size: 13px;
+      color: var(--danger);
+      margin-bottom: 16px;
+      line-height: 1.4;
+    }
+    .error-banner.visible { display: block; }
+
+    /* ── Spinner ── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      display: inline-block;
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header class="header">
+  <div class="logo-mark">B</div>
+  <div class="header-text">
+    <h1>BNI Empower</h1>
+    <p>New Member Onboarding</p>
+  </div>
+</header>
+
+<main class="main">
+
+  <!-- ── Step 0: Intro ── -->
+  <div class="step-page active" id="step-0">
+    <div class="intro-card">
+      <div class="intro-logo">B</div>
+      <h2>Welcome to BNI Empower!</h2>
+      <p>This form takes about 3 minutes.<br>Your details will go directly into our member directory.</p>
+      <div class="divider"></div>
+      <ul class="checklist">
+        <li>Personal &amp; contact details</li>
+        <li>Business information</li>
+        <li>Social media &amp; website</li>
+        <li>Company logo upload (JPG or PNG)</li>
+      </ul>
+    </div>
+    <!-- Power Team Preview -->
+    <button class="pt-toggle-btn" id="ptToggleBtn" onclick="togglePowerTeams()">
+      🏆 Click to preview Power Teams!
+      <span class="pt-arrow">▾</span>
+    </button>
+    <div class="pt-panel" id="ptPanel">
+      <div class="pt-loading" id="ptLoading">Loading Power Teams…</div>
+      <div id="ptGrid" class="pt-grid" style="display:none;"></div>
+      <div class="pt-legend" id="ptLegend" style="display:none;">
+        <span><span class="pt-dot avail"></span> Trade Available</span>
+        <span><span class="pt-dot unavail"></span> Trade Unavailable</span>
+      </div>
+    </div>
+
+    <div class="nav-row">
+      <button class="btn btn-primary" onclick="goTo(1)">Get Started →</button>
+    </div>
+  </div>
+
+  <!-- ── Step 1: Personal ── -->
+  <div class="step-page" id="step-1">
+    <div class="progress-bar" id="pb-1"></div>
+    <div class="section-card">
+      <div class="section-title">
+        <span class="step-badge">1</span>Personal Details
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>First / Preferred Name <span class="req">*</span></label>
+          <input type="text" id="firstName" placeholder="e.g. John" autocomplete="given-name" required>
+        </div>
+        <div class="field">
+          <label>Surname <span class="req">*</span></label>
+          <input type="text" id="surname" placeholder="e.g. Smith" autocomplete="family-name" required>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Full Name (as on ID / for records) <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:#555">*autofill can be edited</span></label>
+        <input type="text" id="fullName" placeholder="Auto-filled — edit if needed">
+      </div>
+
+      <div class="field">
+        <label>Birthday (DD MMM YYYY) <span class="req">*</span></label>
+        <div class="field-row" style="margin-bottom:0">
+          <div class="field" style="margin-bottom:0">
+            <select id="bdDay"><option value="">Day</option></select>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <select id="bdMonth">
+              <option value="">Month</option>
+              <option>Jan</option><option>Feb</option><option>Mar</option>
+              <option>Apr</option><option>May</option><option>Jun</option>
+              <option>Jul</option><option>Aug</option><option>Sep</option>
+              <option>Oct</option><option>Nov</option><option>Dec</option>
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <select id="bdYear"><option value="">Year</option></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Sponsored By</label>
+        <select id="sponsoredBy">
+          <option value="">— None / Not applicable —</option>
+        </select>
+      </div>
+    </div>
+    <div id="err-1" class="error-banner"></div>
+    <div class="nav-row">
+      <button class="btn btn-secondary" onclick="goTo(0)">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep(1)">Next →</button>
+    </div>
+  </div>
+
+  <!-- ── Step 2: Business ── -->
+  <div class="step-page" id="step-2">
+    <div class="progress-bar" id="pb-2"></div>
+    <div class="section-card">
+      <div class="section-title">
+        <span class="step-badge">2</span>Business Details
+      </div>
+
+      <div class="field">
+        <label>Business Name <span class="req">*</span></label>
+        <input type="text" id="businessName" placeholder="Your company name" autocomplete="organization">
+      </div>
+
+      <div class="field">
+        <label>Industry <span class="req">*</span></label>
+        <input type="text" id="industry" placeholder="e.g. Finance, Technology, F&amp;B">
+      </div>
+
+      <div class="field">
+        <label>Trade Category <span class="req">*</span></label>
+        <input type="text" id="tradeCategory" placeholder="e.g. Financial Planner, Lawyer">
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>In Trade Since</label>
+          <input type="text" id="inTradeSince" placeholder="e.g. 2010" inputmode="numeric" maxlength="4">
+        </div>
+        <div class="field">
+          <label>Mobile <span class="req">*</span></label>
+          <input type="tel" id="mobile" placeholder="81234567" inputmode="numeric" maxlength="15" autocomplete="tel">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Office Address <span class="req">*</span></label>
+        <textarea id="officeAddress" placeholder="Full office or mailing address" rows="2"></textarea>
+      </div>
+    </div>
+    <div id="err-2" class="error-banner"></div>
+    <div class="nav-row">
+      <button class="btn btn-secondary" onclick="goTo(1)">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep(2)">Next →</button>
+    </div>
+  </div>
+
+  <!-- ── Step 3: Online Presence ── -->
+  <div class="step-page" id="step-3">
+    <div class="progress-bar" id="pb-3"></div>
+    <div class="section-card">
+      <div class="section-title">
+        <span class="step-badge">3</span>Online Presence
+      </div>
+
+      <div class="field">
+        <label>Company Website</label>
+        <input type="url" id="companyWebsite" placeholder="https://yourwebsite.com" inputmode="url">
+      </div>
+
+      <div class="field">
+        <label>Facebook Page</label>
+        <input type="url" id="fbPage" placeholder="https://facebook.com/yourpage" inputmode="url">
+      </div>
+
+      <div class="field">
+        <label>Instagram (Business)</label>
+        <input type="text" id="businessIG" placeholder="@yourhandle">
+      </div>
+
+      <div class="field">
+        <label>LinkedIn</label>
+        <input type="url" id="linkedin" placeholder="https://linkedin.com/in/yourprofile" inputmode="url">
+      </div>
+
+      <div class="field">
+        <label>Other Social Media</label>
+        <input type="text" id="otherSocial" placeholder="TikTok, YouTube, etc.">
+      </div>
+    </div>
+    <div id="err-3" class="error-banner"></div>
+    <div class="nav-row">
+      <button class="btn btn-secondary" onclick="goTo(2)">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep(3)">Next →</button>
+    </div>
+  </div>
+
+  <!-- ── Step 4: Contact & Emails ── -->
+  <div class="step-page" id="step-4">
+    <div class="progress-bar" id="pb-4"></div>
+    <div class="section-card">
+      <div class="section-title">
+        <span class="step-badge">4</span>Contact &amp; Emails
+      </div>
+
+      <div class="field">
+        <label>Business Email <span class="req">*</span></label>
+        <input type="email" id="businessEmail" placeholder="you@yourcompany.com" autocomplete="email" inputmode="email">
+      </div>
+
+      <div class="field">
+        <label>Google Drive Email
+          <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:#555"> — for shared BNI folders</span>
+        </label>
+        <input type="email" id="driveEmail" placeholder="gmail or Google Workspace email" inputmode="email">
+      </div>
+
+      <div class="field">
+        <label>Google Calendar Email
+          <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:#555"> — for meeting invites</span>
+        </label>
+        <input type="email" id="calendarEmail" placeholder="gmail or Google Workspace email" inputmode="email">
+      </div>
+
+      <div class="field">
+        <label>Next of Kin Contact</label>
+        <input type="text" id="nextOfKin" placeholder="Name &amp; phone number">
+      </div>
+    </div>
+    <div id="err-4" class="error-banner"></div>
+    <div class="nav-row">
+      <button class="btn btn-secondary" onclick="goTo(3)">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep(4)">Next →</button>
+    </div>
+  </div>
+
+  <!-- ── Step 5: Company Logo & Headshot ── -->
+  <div class="step-page" id="step-5">
+    <div class="progress-bar" id="pb-5"></div>
+
+    <!-- Company Logo -->
+    <div class="section-card">
+      <div class="section-title">
+        <span class="step-badge">5</span>Company Logo <span class="req">*</span>
+      </div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;line-height:1.5">
+        Upload your company logo (JPG or PNG).
+      </p>
+      <div class="logo-upload-zone" id="upload-zone">
+        <input type="file" id="logoFile" accept="image/jpeg,image/png" onchange="handleLogoFile(this.files[0])">
+        <div class="logo-upload-icon">🖼️</div>
+        <p><strong>Tap to choose</strong> or drag &amp; drop</p>
+        <p class="hint">JPG or PNG · max 10 MB · will be auto-resized</p>
+      </div>
+      <div class="logo-preview-wrap" id="logo-preview">
+        <img id="logo-preview-img" src="" alt="Logo preview">
+        <span class="file-name" id="logo-file-name"></span>
+        <button class="logo-remove" onclick="clearLogo()">✕ Remove</button>
+      </div>
+    </div>
+
+    <!-- Corporate Headshot -->
+    <div class="section-card">
+      <div class="section-title" style="margin-bottom:12px">
+        Corporate Headshot
+      </div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;line-height:1.5">
+        Upload your corporate headshot (JPG or PNG). It will be saved to the BNI Empower Google Drive.
+      </p>
+      <div class="logo-upload-zone" id="headshot-upload-zone">
+        <input type="file" id="headshotFile" accept="image/jpeg,image/png" onchange="handleHeadshotFile(this.files[0])">
+        <div class="logo-upload-icon">🤳</div>
+        <p><strong>Tap to choose</strong> or drag &amp; drop</p>
+        <p class="hint">JPG or PNG · max 10 MB · will be auto-resized</p>
+      </div>
+      <div class="logo-preview-wrap" id="headshot-preview">
+        <img id="headshot-preview-img" src="" alt="Headshot preview">
+        <span class="file-name" id="headshot-file-name"></span>
+        <button class="logo-remove" onclick="clearHeadshot()">✕ Remove</button>
+      </div>
+    </div>
+
+    <div id="err-5" class="error-banner"></div>
+    <div class="nav-row">
+      <button class="btn btn-secondary" onclick="goTo(4)">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep(5)">Review →</button>
+    </div>
+  </div>
+
+  <!-- ── Step 6: Review & Submit ── -->
+  <div class="step-page" id="step-6">
+    <div class="progress-bar" id="pb-6"></div>
+    <div class="section-card">
+      <div class="section-title">
+        <span class="step-badge">6</span>Review Your Details
+      </div>
+      <div id="review-content" style="font-size:14px;line-height:1.7;color:var(--text-muted)"></div>
+    </div>
+    <div id="err-6" class="error-banner"></div>
+    <div class="nav-row">
+      <button class="btn btn-secondary" onclick="goTo(5)">← Back</button>
+      <button class="btn btn-primary" id="submit-btn" onclick="submitForm()">Submit ✓</button>
+    </div>
+  </div>
+
+  <!-- ── Success ── -->
+  <div class="step-page" id="step-success">
+    <div class="success-screen">
+      <div class="success-icon">✓</div>
+      <h2>You're all set!</h2>
+      <p>Your details have been saved to the BNI Empower member directory.<br><br>
+         Welcome to the chapter — see you at the next meeting!</p>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxYCpexo7cuQwYMpBwLtVn48hEQAoz1PQw17INXwZpXz-nh7foLB4-8Dhct2a7yNE8lMg/exec';
+
+// Sponsored By datalist — populated dynamically from Active_Members sheet
+
+const TOTAL_STEPS = 6; // steps 1–6 (0 = intro, success = separate)
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let logoBase64      = '';
+let logoMime        = '';
+let headshotBase64  = '';
+let headshotMime    = '';
+let currentStep     = 0;
+let ptLoaded     = false;   // whether power teams have been fetched yet
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(async function init() {
+  // Populate Sponsored By dropdown from live roster
+  const sponsorSel = document.getElementById('sponsoredBy');
+  try {
+    const res  = await fetch(APPS_SCRIPT_URL + '?action=getRoster');
+    const json = await res.json();
+    (json.members || []).forEach(n => {
+      const o = document.createElement('option');
+      o.value = o.textContent = n;
+      sponsorSel.appendChild(o);
+    });
+  } catch (_) {};
+
+  // Auto-fill Full Name when first/surname change
+  ['firstName','surname'].forEach(id => {
+    document.getElementById(id).addEventListener('input', syncFullName);
+  });
+
+  // Populate birthday day options (1–31)
+  const dayEl = document.getElementById('bdDay');
+  for (let d = 1; d <= 31; d++) {
+    const o = document.createElement('option');
+    o.value = o.textContent = String(d).padStart(2, '0');
+    dayEl.appendChild(o);
+  }
+  // Populate birthday year options (current year down to 1940)
+  const yearEl = document.getElementById('bdYear');
+  const curYear = new Date().getFullYear();
+  for (let y = curYear; y >= 1940; y--) {
+    const o = document.createElement('option');
+    o.value = o.textContent = y;
+    yearEl.appendChild(o);
+  }
+
+  // Drag-and-drop for logo
+  const zone = document.getElementById('upload-zone');
+  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) handleLogoFile(f);
+  });
+
+  // Drag-and-drop for headshot
+  const hsZone = document.getElementById('headshot-upload-zone');
+  hsZone.addEventListener('dragover',  e => { e.preventDefault(); hsZone.classList.add('drag-over'); });
+  hsZone.addEventListener('dragleave', () => hsZone.classList.remove('drag-over'));
+  hsZone.addEventListener('drop', e => {
+    e.preventDefault();
+    hsZone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) handleHeadshotFile(f);
+  });
+})();
+
+function syncFullName() {
+  const f = document.getElementById('firstName').value.trim();
+  const s = document.getElementById('surname').value.trim();
+  const full = document.getElementById('fullName');
+  if (!full._edited) full.value = [f, s].filter(Boolean).join(' ');
+}
+document.getElementById('fullName').addEventListener('input', function() {
+  this._edited = this.value.trim() !== '';
+});
+
+// Combine birthday dropdowns → "DD MMM YYYY"
+function getBirthday() {
+  const d = document.getElementById('bdDay').value;
+  const m = document.getElementById('bdMonth').value;
+  const y = document.getElementById('bdYear').value;
+  if (!d || !m || !y) return '';
+  return d + ' ' + m + ' ' + y;
+}
+
+// ── Progress bar ──────────────────────────────────────────────────────────────
+function renderProgress(step) {
+  for (let s = 1; s <= TOTAL_STEPS; s++) {
+    const pb = document.getElementById('pb-' + s);
+    if (!pb) continue;
+    pb.innerHTML = '';
+    for (let i = 1; i <= TOTAL_STEPS; i++) {
+      const span = document.createElement('span');
+      if (i < s)       span.className = 'done';
+      else if (i === s) span.className = 'active';
+      pb.appendChild(span);
+    }
+  }
+}
+
+// ── Power Team Preview ────────────────────────────────────────────────────────
+function togglePowerTeams() {
+  const btn   = document.getElementById('ptToggleBtn');
+  const panel = document.getElementById('ptPanel');
+  const open  = panel.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  if (open && !ptLoaded) loadPowerTeams();
+}
+
+async function loadPowerTeams() {
+  const loading = document.getElementById('ptLoading');
+  const grid    = document.getElementById('ptGrid');
+  const legend  = document.getElementById('ptLegend');
+
+  loading.style.display = 'block';
+  grid.style.display    = 'none';
+  legend.style.display  = 'none';
+
+  try {
+    const url = APPS_SCRIPT_URL + '?action=getPowerTeams';
+    const res  = await fetch(url);
+    const json = await res.json();
+    const teams = json.teams || [];
+
+    if (!teams.length) {
+      loading.textContent = 'No power team data found.';
+      return;
+    }
+
+    grid.innerHTML = teams.map(team => {
+      const tradesHtml = team.trades.length
+        ? team.trades.map(t => `
+            <div class="pt-trade ${t.available ? 'avail' : 'unavail'}">
+              <span class="pt-dot ${t.available ? 'avail' : 'unavail'}"></span>
+              ${escHtml(t.trade)}
+            </div>`).join('')
+        : '<div style="font-size:12px;color:var(--text-muted);">No trades listed</div>';
+
+      return `
+        <div class="pt-card">
+          <div class="pt-card-header">${escHtml(team.name || 'Unnamed Team')}</div>
+          <div class="pt-trades">${tradesHtml}</div>
+        </div>`;
+    }).join('');
+
+    loading.style.display = 'none';
+    grid.style.display    = 'grid';
+    legend.style.display  = 'flex';
+    ptLoaded = true;
+  } catch (err) {
+    loading.textContent = 'Could not load Power Teams. Please try again later.';
+  }
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function goTo(step) {
+  document.getElementById('step-' + currentStep).classList.remove('active');
+  if (step === 'success') {
+    document.getElementById('step-success').classList.add('active');
+  } else {
+    document.getElementById('step-' + step).classList.add('active');
+    renderProgress(step);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  currentStep = step;
+}
+
+function showErr(step, msg) {
+  const el = document.getElementById('err-' + step);
+  el.textContent = msg;
+  el.classList.add('visible');
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function clearErr(step) {
+  const el = document.getElementById('err-' + step);
+  el.textContent = '';
+  el.classList.remove('visible');
+}
+
+// ── Validation per step ───────────────────────────────────────────────────────
+function validateStep(step) {
+  clearErr(step);
+  const req = (id) => (document.getElementById(id)?.value || '').trim();
+  if (step === 1) {
+    if (!req('firstName')) return 'First name is required.';
+    if (!req('surname'))   return 'Surname is required.';
+    if (!getBirthday()) return 'Please select a complete birthday (day, month, and year).';
+  }
+  if (step === 2) {
+    if (!req('businessName'))   return 'Business name is required.';
+    if (!req('industry'))       return 'Industry is required.';
+    if (!req('tradeCategory'))  return 'Trade category is required.';
+    if (!req('mobile'))         return 'Mobile number is required.';
+    if (!req('officeAddress'))  return 'Office address is required.';
+  }
+  if (step === 4) {
+    if (!req('businessEmail')) return 'Business email is required.';
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRe.test(req('businessEmail'))) return 'Please enter a valid email address.';
+  }
+  if (step === 5) {
+    if (!logoBase64) return 'Please upload your company logo before continuing.';
+  }
+  return null; // valid
+}
+
+function nextStep(step) {
+  const err = validateStep(step);
+  if (err) { showErr(step, err); return; }
+  if (step === 5) {
+    buildReview();
+    goTo(6);
+  } else {
+    goTo(step + 1);
+  }
+}
+
+// ── Logo handling ─────────────────────────────────────────────────────────────
+function handleLogoFile(file) {
+  if (!file) return;
+  if (!['image/jpeg','image/png'].includes(file.type)) {
+    showErr(5, 'Only JPG or PNG files are accepted.');
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    showErr(5, 'File is too large. Maximum 10 MB.');
+    return;
+  }
+  clearErr(5);
+  compressImage(file, 800, 0.82, (base64, mime) => {
+    logoBase64 = base64;
+    logoMime   = mime;
+    const img  = document.getElementById('logo-preview-img');
+    img.src    = 'data:' + mime + ';base64,' + base64;
+    document.getElementById('logo-file-name').textContent = file.name;
+    document.getElementById('upload-zone').style.display = 'none';
+    document.getElementById('logo-preview').classList.add('visible');
+  });
+}
+
+function clearLogo() {
+  logoBase64 = '';
+  logoMime   = '';
+  document.getElementById('logoFile').value = '';
+  document.getElementById('logo-preview-img').src = '';
+  document.getElementById('logo-preview').classList.remove('visible');
+  document.getElementById('upload-zone').style.display = '';
+}
+
+function handleHeadshotFile(file) {
+  if (!file) return;
+  if (!['image/jpeg','image/png'].includes(file.type)) {
+    showErr(5, 'Only JPG or PNG files are accepted for the headshot.');
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    showErr(5, 'Headshot file is too large. Maximum 10 MB.');
+    return;
+  }
+  clearErr(5);
+  compressImage(file, 800, 0.85, (base64, mime) => {
+    headshotBase64 = base64;
+    headshotMime   = mime;
+    const img = document.getElementById('headshot-preview-img');
+    img.src   = 'data:' + mime + ';base64,' + base64;
+    document.getElementById('headshot-file-name').textContent = file.name;
+    document.getElementById('headshot-upload-zone').style.display = 'none';
+    document.getElementById('headshot-preview').classList.add('visible');
+  });
+}
+
+function clearHeadshot() {
+  headshotBase64 = '';
+  headshotMime   = '';
+  document.getElementById('headshotFile').value = '';
+  document.getElementById('headshot-preview-img').src = '';
+  document.getElementById('headshot-preview').classList.remove('visible');
+  document.getElementById('headshot-upload-zone').style.display = '';
+}
+
+// Resize + compress image client-side using canvas
+function compressImage(file, maxDim, quality, cb) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else       { w = Math.round(w * maxDim / h); h = maxDim; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const mime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+      const dataUrl = canvas.toDataURL(mime, quality);
+      const base64  = dataUrl.split(',')[1];
+      cb(base64, mime);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── Review page ───────────────────────────────────────────────────────────────
+function buildReview() {
+  const g = (id) => (document.getElementById(id)?.value || '').trim();
+  const rows = [
+    ['First / Preferred Name', g('firstName')],
+    ['Surname',                g('surname')],
+    ['Full Name',              g('fullName')],
+    ['Birthday',               getBirthday()],
+    ['Sponsored By',           g('sponsoredBy')],
+    ['Business Name',          g('businessName')],
+    ['Industry',               g('industry')],
+    ['Trade Category',         g('tradeCategory')],
+    ['In Trade Since',         g('inTradeSince')],
+    ['Mobile',                 g('mobile')],
+    ['Office Address',         g('officeAddress')],
+    ['Company Website',        g('companyWebsite')],
+    ['Facebook Page',          g('fbPage')],
+    ['Instagram',              g('businessIG')],
+    ['LinkedIn',               g('linkedin')],
+    ['Other Social Media',     g('otherSocial')],
+    ['Business Email',         g('businessEmail')],
+    ['Google Drive Email',     g('driveEmail')],
+    ['Google Calendar Email',  g('calendarEmail')],
+    ['Next of Kin Contact',    g('nextOfKin')],
+    ['Company Logo',           logoBase64      ? '✓ Image attached' : '— not uploaded —'],
+    ['Corporate Headshot',     headshotBase64  ? '✓ Image attached' : '— not uploaded —'],
+  ];
+
+  const el = document.getElementById('review-content');
+  el.innerHTML = rows.map(([label, val]) =>
+    `<div style="display:flex;gap:10px;border-bottom:1px solid var(--border);padding:7px 0;align-items:baseline">
+      <span style="flex:0 0 150px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">${label}</span>
+      <span style="color:${val && val !== '— not uploaded —' ? 'var(--text)' : '#555'};font-size:14px;word-break:break-all">${val || '—'}</span>
+    </div>`
+  ).join('');
+}
+
+// ── Submit ────────────────────────────────────────────────────────────────────
+async function submitForm() {
+  clearErr(6);
+  const g = (id) => (document.getElementById(id)?.value || '').trim();
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Submitting…';
+
+  const payload = {
+    formType:       'newMember',
+    fullName:        g('fullName')       || (g('firstName') + ' ' + g('surname')).trim(),
+    firstName:       g('firstName'),
+    surname:         g('surname'),
+    birthday:        getBirthday(),
+    sponsoredBy:     g('sponsoredBy'),
+    industry:        g('industry'),
+    tradeCategory:   g('tradeCategory'),
+    businessName:    g('businessName'),
+    inTradeSince:    g('inTradeSince'),
+    companyWebsite:  g('companyWebsite'),
+    fbPage:          g('fbPage'),
+    businessIG:      g('businessIG'),
+    linkedin:        g('linkedin'),
+    officeAddress:   g('officeAddress'),
+    mobile:          g('mobile'),
+    nextOfKin:       g('nextOfKin'),
+    businessEmail:   g('businessEmail'),
+    driveEmail:      g('driveEmail'),
+    calendarEmail:   g('calendarEmail'),
+    otherSocial:     g('otherSocial'),
+    logoBase64:      logoBase64,
+    logoMime:        logoMime,
+    headshotBase64:  headshotBase64,
+    headshotMime:    headshotMime,
+  };
+
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body:   JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (json.status !== 'ok') throw new Error(json.message || 'Server error');
+    goTo('success');
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = 'Submit ✓';
+    showErr(6, 'Submission failed — please check your connection and try again.\n(' + err.message + ')');
+  }
+}
+</script>
+</body>
+</html>

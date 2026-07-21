@@ -1,0 +1,25 @@
+{
+  "name": "BNI Empower Check-In",
+  "short_name": "BNI Check-In",
+  "description": "Weekly check-in form for BNI Empower chapter members",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0d0d0d",
+  "theme_color": "#c0392b",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

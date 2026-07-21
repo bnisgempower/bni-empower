@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#c0392b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BNI Admin">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <title>BNI Empower — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --gold:       #c0392b;
+      --bg:         #0d0d0d;
+      --bg2:        #141414;
+      --surface:    #1c1c1c;
+      --border:     #2e2e2e;
+      --text:       #f0ede8;
+      --text-muted: #888;
+      --text-dim:   #4a4a4a;
+      --success:    #5cc976;
+      --danger:     #e05c5c;
+      --warning:    #f0a500;
+      --r:          14px;
+      --r-sm:       8px;
+      --tr:         200ms ease;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ── Header ── */
+    .header {
+      width: 100%;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 13px 18px;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .logo-mark {
+      width: 34px; height: 34px;
+      background: var(--gold);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 17px; color: #000; flex-shrink: 0;
+    }
+    .hd-title { font-size: 15px; font-weight: 700; }
+    .hd-sub   { font-size: 11px; color: var(--text-muted); }
+
+    /* ── Container ── */
+    .container {
+      width: 100%;
+      max-width: 480px;
+      padding: 24px 18px;
+      flex: 1;
+    }
+
+    /* ── PIN screen ── */
+    .pin-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      gap: 18px;
+      text-align: center;
+    }
+    .pin-icon { font-size: 52px; }
+    .pin-title { font-size: 22px; font-weight: 700; }
+    .pin-sub { font-size: 14px; color: var(--text-muted); }
+    .pin-input {
+      width: 100%;
+      max-width: 200px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-sm);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 8px;
+      text-align: center;
+      padding: 14px;
+      outline: none;
+      -webkit-text-security: disc;
+    }
+    .pin-input:focus { border-color: var(--gold); }
+    .pin-err { color: var(--danger); font-size: 13px; min-height: 18px; }
+
+    /* ── Dashboard ── */
+    .dash-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .dash-title { font-size: 18px; font-weight: 700; }
+    .logout-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--text-muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px; font-weight: 600;
+      padding: 6px 14px;
+      cursor: pointer;
+    }
+    .logout-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+    /* ── Action cards ── */
+    .action-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r);
+      padding: 18px;
+      margin-bottom: 12px;
+    }
+    .action-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      gap: 10px;
+    }
+    .action-card-title {
+      font-size: 15px; font-weight: 700;
+    }
+    .action-card-sub {
+      font-size: 12px; color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .action-btn {
+      flex-shrink: 0;
+      padding: 9px 16px;
+      border-radius: var(--r-sm);
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px; font-weight: 700;
+      cursor: pointer;
+      transition: all var(--tr);
+      background: var(--gold);
+      color: #000;
+    }
+    .action-btn:active { transform: scale(.96); }
+    .action-btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .action-btn.danger {
+      background: rgba(224,92,92,.15);
+      color: var(--danger);
+      border: 1px solid rgba(224,92,92,.3);
+    }
+
+    /* ── Result area ── */
+    .result-area {
+      margin-top: 12px;
+      display: none;
+    }
+    .result-area.show { display: block; }
+    .result-stat {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .stat-chip {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: var(--r-sm);
+      text-align: center;
+    }
+    .stat-chip .sc-num { font-size: 24px; font-weight: 800; }
+    .stat-chip .sc-lbl { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+    .stat-chip.green { background: rgba(92,201,118,.1); }
+    .stat-chip.green .sc-num { color: var(--success); }
+    .stat-chip.red   { background: rgba(224,92,92,.1); }
+    .stat-chip.red   .sc-num { color: var(--danger); }
+    .stat-chip.grey  { background: var(--bg2); }
+    .stat-chip.grey  .sc-num { color: var(--text-muted); }
+
+    .name-list-label {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .name-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .name-chip {
+      padding: 5px 11px;
+      border-radius: 20px;
+      font-size: 12px; font-weight: 600;
+    }
+    .name-chip.missing { background: rgba(224,92,92,.12); color: var(--danger); }
+    .name-chip.present { background: rgba(92,201,118,.12); color: var(--success); }
+    .name-chip.absent  { background: rgba(224,92,92,.12);  color: var(--danger); }
+    .name-chip.notsigned { background: var(--bg2); color: var(--text-muted); border: 1px solid var(--border); }
+    .name-chip.late    { background: rgba(240,165,0,.12); color: var(--warning); }
+
+    .spinner-sm {
+      width: 16px; height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .success-msg { color: var(--success); font-size: 14px; font-weight: 600; }
+    .error-msg   { color: var(--danger);  font-size: 14px; font-weight: 600; }
+
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo-mark">B</div>
+  <div>
+    <div class="hd-title">BNI Empower</div>
+    <div class="hd-sub">Admin Panel</div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ── PIN screen ── -->
+  <div id="vPin" class="pin-screen">
+    <div class="pin-icon">🔑</div>
+    <div class="pin-title">Admin Access</div>
+    <div class="pin-sub">Enter your PIN to continue</div>
+    <input class="pin-input" id="pinInput" type="tel" maxlength="4"
+           placeholder="····" inputmode="numeric"
+           oninput="onPinInput()" onkeydown="if(event.key==='Enter')submitPin()">
+    <div class="pin-err" id="pinErr"></div>
+  </div>
+
+  <!-- ── Dashboard ── -->
+  <div id="vDash" hidden>
+    <div class="dash-header">
+      <div class="dash-title">Dashboard</div>
+      <button class="logout-btn" onclick="logout()">Sign out</button>
+    </div>
+
+    <!-- Missing submissions -->
+    <div class="action-card">
+      <div class="action-card-head">
+        <div>
+          <div class="action-card-title">📋 Missing Submissions</div>
+          <div class="action-card-sub">Who hasn't checked in this week</div>
+        </div>
+        <button class="action-btn" id="btnMissing" onclick="loadMissing()">Check</button>
+      </div>
+      <div class="result-area" id="resMissing"></div>
+    </div>
+
+    <!-- Attendance -->
+    <div class="action-card">
+      <div class="action-card-head">
+        <div>
+          <div class="action-card-title">🙋 Today's Attendance</div>
+          <div class="action-card-sub">Who has / hasn't signed in today</div>
+        </div>
+        <button class="action-btn" id="btnAttendance" onclick="loadAttendance()">Check</button>
+      </div>
+      <div class="result-area" id="resAttendance"></div>
+    </div>
+
+    <!-- Clear submissions -->
+    <div class="action-card">
+      <div class="action-card-head">
+        <div>
+          <div class="action-card-title">🗑 Clear Weekly Submissions</div>
+          <div class="action-card-sub">Deletes all rows — do after each meeting</div>
+        </div>
+        <button class="action-btn danger" id="btnClear" onclick="confirmClear()">Clear</button>
+      </div>
+      <div class="result-area" id="resClear"></div>
+    </div>
+
+  </div><!-- /vDash -->
+
+</div><!-- /container -->
+
+<script>
+'use strict';
+
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxYCpexo7cuQwYMpBwLtVn48hEQAoz1PQw17INXwZpXz-nh7foLB4-8Dhct2a7yNE8lMg/exec';
+const ADMIN_PIN = '0303';
+
+// ── PIN ──────────────────────────────────────────────
+function onPinInput() {
+  document.getElementById('pinErr').textContent = '';
+  const val = document.getElementById('pinInput').value;
+  if (val.length === 4) submitPin();
+}
+
+function submitPin() {
+  const pin = document.getElementById('pinInput').value;
+  if (pin === ADMIN_PIN) {
+    document.getElementById('vPin').hidden = true;
+    document.getElementById('vDash').hidden = false;
+  } else {
+    document.getElementById('pinErr').textContent = 'Incorrect PIN';
+    document.getElementById('pinInput').value = '';
+  }
+}
+
+function logout() {
+  document.getElementById('vDash').hidden = true;
+  document.getElementById('vPin').hidden  = false;
+  document.getElementById('pinInput').value = '';
+  // Reset results
+  ['resMissing','resAttendance','resClear'].forEach(id => {
+    const el = document.getElementById(id);
+    el.innerHTML = '';
+    el.classList.remove('show');
+  });
+}
+
+// ── API helper ───────────────────────────────────────
+async function callAction(action, params = {}) {
+  const qs  = new URLSearchParams({ action, ...params }).toString();
+  const res = await fetch(APPS_SCRIPT_URL + '?' + qs);
+  return res.json();
+}
+
+// ── Missing submissions ──────────────────────────────
+async function loadMissing() {
+  const btn = document.getElementById('btnMissing');
+  const res = document.getElementById('resMissing');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-sm"></span>';
+  res.classList.add('show');
+  res.innerHTML = '';
+
+  try {
+    const data = await callAction('getMissing');
+    const { missing, submittedNames, total, submitted } = data;
+
+    res.innerHTML = `
+      <div class="result-stat">
+        <div class="stat-chip green">
+          <div class="sc-num">${submitted}</div>
+          <div class="sc-lbl">Submitted</div>
+        </div>
+        <div class="stat-chip red">
+          <div class="sc-num">${missing.length}</div>
+          <div class="sc-lbl">Missing</div>
+        </div>
+        <div class="stat-chip grey">
+          <div class="sc-num">${total}</div>
+          <div class="sc-lbl">Total</div>
+        </div>
+      </div>
+      ${missing.length > 0 ? `
+        <div class="name-list-label">Not yet submitted</div>
+        <div class="name-chips">
+          ${missing.map(n => `<span class="name-chip missing">${n}</span>`).join('')}
+        </div>` : '<div class="success-msg">✅ All members have submitted!</div>'}
+      ${submittedNames && submittedNames.length > 0 ? `
+        <div class="name-list-label" style="margin-top:14px;">Submitted ✅</div>
+        <div class="name-chips">
+          ${submittedNames.map(n => `<span class="name-chip present">${n}</span>`).join('')}
+        </div>` : ''}
+    `;
+  } catch {
+    res.innerHTML = '<div class="error-msg">Failed to load — check connection.</div>';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Refresh';
+}
+
+// ── Attendance ───────────────────────────────────────
+async function loadAttendance() {
+  const btn = document.getElementById('btnAttendance');
+  const res = document.getElementById('resAttendance');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-sm"></span>';
+  res.classList.add('show');
+  res.innerHTML = '';
+
+  try {
+    const data = await callAction('getAttendanceList');
+    const { dateLabel, members } = data;
+
+    const here   = members.filter(m => m.status && !m.status.startsWith('Absent'));
+    const absent = members.filter(m => m.status && m.status.startsWith('Absent'));
+    const notYet = members.filter(m => !m.status);
+
+    const chipClass = s => {
+      if (!s) return 'notsigned';
+      if (s.startsWith('Late')) return 'late';
+      if (s.startsWith('Absent') || s.startsWith('Sub')) return 'absent';
+      return 'present';
+    };
+
+    res.innerHTML = `
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">${dateLabel || 'Most recent meeting'}</div>
+      <div class="result-stat">
+        <div class="stat-chip green">
+          <div class="sc-num">${here.length}</div>
+          <div class="sc-lbl">In Room</div>
+        </div>
+        <div class="stat-chip red">
+          <div class="sc-num">${notYet.length}</div>
+          <div class="sc-lbl">Not Yet</div>
+        </div>
+        <div class="stat-chip grey">
+          <div class="sc-num">${absent.length}</div>
+          <div class="sc-lbl">Absent</div>
+        </div>
+      </div>
+      ${here.length > 0 ? `
+        <div class="name-list-label" style="margin-top:4px;">Signed in</div>
+        <div class="name-chips" style="margin-bottom:12px;">
+          ${here.map(m => `<span class="name-chip ${chipClass(m.status)}" title="${m.status}">${m.name}</span>`).join('')}
+        </div>` : ''}
+      ${notYet.length > 0 ? `
+        <div class="name-list-label">Not yet signed in</div>
+        <div class="name-chips" style="margin-bottom:12px;">
+          ${notYet.map(m => `<span class="name-chip notsigned">${m.name}</span>`).join('')}
+        </div>` : '<div class="success-msg" style="margin-top:4px;">✅ All members signed in!</div>'}
+      ${absent.length > 0 ? `
+        <div class="name-list-label">Absent / Sub</div>
+        <div class="name-chips">
+          ${absent.map(m => `<span class="name-chip absent">${m.name}</span>`).join('')}
+        </div>` : ''}
+    `;
+  } catch {
+    res.innerHTML = '<div class="error-msg">Failed to load — check connection.</div>';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Refresh';
+}
+
+// ── Clear submissions ────────────────────────────────
+function confirmClear() {
+  if (!confirm('Clear ALL weekly submissions? This cannot be undone.')) return;
+  doClear();
+}
+
+async function doClear() {
+  const btn = document.getElementById('btnClear');
+  const res = document.getElementById('resClear');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-sm"></span>';
+  res.classList.add('show');
+  res.innerHTML = '';
+
+  try {
+    const data = await callAction('clearSubmissions', { pin: ADMIN_PIN });
+    if (data.cleared) {
+      res.innerHTML = '<div class="success-msg">✅ Weekly submissions cleared.</div>';
+    } else {
+      res.innerHTML = '<div class="error-msg">Failed — ' + (data.message || 'unknown error') + '</div>';
+    }
+  } catch {
+    res.innerHTML = '<div class="error-msg">Failed to clear — check connection.</div>';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Clear';
+}
+</script>
+</body>
+</html>
