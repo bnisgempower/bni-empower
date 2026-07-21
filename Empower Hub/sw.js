@@ -5,10 +5,10 @@
 const CACHE_NAME = 'bni-empower-hub-v1';
 
 const SHELL = [
-  '/',
-  '/index.html',
-  '/icon.svg',
-  '/manifest.json',
+  './',
+  './index.html',
+  './icon.svg',
+  './manifest.json',
 ];
 
 // ── Install — cache the app shell ────────────────────
@@ -48,7 +48,7 @@ self.addEventListener('fetch', event => {
       })
     ).catch(() => {
       if (event.request.mode === 'navigate') {
-        return caches.match('/') || caches.match('/index.html');
+        return caches.match('./index.html') || caches.match('./');
       }
     })
   );

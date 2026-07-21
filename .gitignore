@@ -8,3 +8,6 @@ Thumbs.db
 
 # ── Node (if ever added) ──
 node_modules/
+
+# ── Temporary deploy clone of the public Pages repo (never commit here) ──
+BNI_Sg_Empower/
