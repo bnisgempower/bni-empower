@@ -299,32 +299,26 @@
   // Same Apps Script Web App URL used by the Weekly Check-In app.
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxYCpexo7cuQwYMpBwLtVn48hEQAoz1PQw17INXwZpXz-nh7foLB4-8Dhct2a7yNE8lMg/exec';
 
-  // Where the Weekly Check-In app is deployed (its Netlify URL).
-  // ⬇️ REPLACE with your live check-in URL.
-  const CHECKIN_URL  = 'REPLACE_WITH_CHECKIN_APP_URL';
+  // Where the Weekly Check-In app is deployed (GitHub Pages).
+  const CHECKIN_URL  = 'https://bnisgempower.github.io/BNI_Sg_Empower/BNI%20Empower%20Weekly%20Check%20In.html';
 
-  // New-member onboarding form (onboarding.html). Optional — leave blank to hide.
-  // ⬇️ REPLACE (or set to '' to hide the footer link).
-  const ONBOARD_URL  = 'REPLACE_WITH_ONBOARDING_URL';
+  // New-member onboarding form (onboarding.html). Set to '' to hide the footer link.
+  const ONBOARD_URL  = 'https://bnisgempower.github.io/BNI_Sg_Empower/onboarding.html';
 
-  // ── Chapter Resources — your Google Drive folders / docs ──
+  // ── Chapter Resources — Google Drive folders ──
   // Each: { label, desc, url, icon }.  icon = key from ICONS below.
-  // ⬇️ REPLACE the 'url' values with your real Drive links. Delete or add rows freely.
+  // NOTE: each folder must be shared "Anyone with the link → Viewer" or members hit "request access".
   const RESOURCES = [
-    { label: 'Member Resources', desc: 'Chapter documents & guides', url: 'REPLACE_WITH_DRIVE_FOLDER_URL', icon: 'folder' },
-    { label: 'Zoom Recordings',  desc: 'Past meeting replays',        url: 'REPLACE_WITH_DRIVE_FOLDER_URL', icon: 'video'  },
-    { label: 'Presentations',    desc: 'Slide decks & templates',     url: 'REPLACE_WITH_DRIVE_FOLDER_URL', icon: 'slides' },
-    { label: 'Forms & Trackers', desc: 'Referral & 1-2-1 sheets',     url: 'REPLACE_WITH_DRIVE_FOLDER_URL', icon: 'sheet'  },
+    { label: 'Member Resources',          desc: 'Chapter documents & guides', url: 'https://drive.google.com/drive/folders/1_R-mePuvxeSxQ6mNqYYUe7t2MJKRime2', icon: 'folder' },
+    { label: 'Zoom Recordings',           desc: 'Past meeting replays',        url: 'https://drive.google.com/drive/folders/1VR2hmvfnHas58JvBunNdRKtYPGp6v7Pt', icon: 'video'  },
+    { label: 'Featured Presentation Slides', desc: 'Past featured decks',      url: 'https://drive.google.com/drive/folders/1MkKypjwZNsHd1SuZdOK3oVo2RcFH0M9A', icon: 'slides' },
   ];
 
-  // ── Quick Links — internal tools & handy pages ──
-  // ⬇️ REPLACE placeholder URLs. Delete any row you don't want.
-  const QUICK_LINKS = [
-    { label: 'Power Teams',        desc: 'See your power team & trades', url: 'REPLACE_WITH_URL_OR_LEAVE', icon: 'team'     },
-    { label: 'Member Bio Sheets',  desc: 'Trade, company & contacts',    url: 'REPLACE_WITH_URL_OR_LEAVE', icon: 'id'       },
-    { label: 'Meeting Attendance', desc: 'Day-of sign-in (physical)',    url: 'REPLACE_WITH_URL_OR_LEAVE', icon: 'checkin'  },
-    { label: 'WhatsApp Group',     desc: 'Chapter announcements',        url: 'REPLACE_WITH_URL_OR_LEAVE', icon: 'chat'     },
-  ];
+  // ── Quick Links — internal tools & handy pages (optional) ──
+  // Add rows as { label, desc, url, icon }. Any row whose url is a placeholder is hidden.
+  // The whole section auto-hides while this is empty. Example row:
+  //   { label: 'WhatsApp Group', desc: 'Chapter announcements', url: 'https://chat.whatsapp.com/XXXX', icon: 'chat' },
+  const QUICK_LINKS = [];
 
   /* ════════════════════════════════════════════════════════════════════════
      END CONFIG — no need to edit below.
