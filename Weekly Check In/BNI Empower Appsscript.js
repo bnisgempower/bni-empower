@@ -78,6 +78,9 @@ function doGet(e) {
   if (action === 'getPowerTeams')        return getPowerTeams_();
   if (action === 'getRoster')            return jsonOk_({ members: getRoster_() });
   if (action === 'getNextPresenters')    return getNextPresenters_();
+  if (action === 'dumpSlides')           return (e.parameter.pin === ADMIN_PIN)
+                                            ? dumpSlides_(e.parameter.find || '', e.parameter.slide || '')
+                                            : jsonErr_('Invalid PIN');
 
   const response = {
     status:    'ok',
@@ -565,6 +568,68 @@ function getNextPresenters_() {
     .map(p => ({ date: p.date, networkEdu: p.networkEdu, coreValue: p.coreValue, featured: p.featured }));
 
   return jsonOk_({ upcoming });
+}
+
+// ── Slide structure dump (read-only — for mapping the deck) ───────────────────
+/**
+ * Returns the presentation's structure so the box object IDs can be mapped.
+ *   ?action=dumpSlides&pin=####                 → compact index of every slide
+ *   ?action=dumpSlides&pin=####&find=Referral   → only slides whose text matches
+ *   ?action=dumpSlides&pin=####&slide=42        → full detail for one slide (1-based)
+ */
+function dumpSlides_(find, slideParam) {
+  const fields = 'slides(objectId,pageElements(objectId,size,transform,' +
+                 'shape(shapeType,text(textElements(textRun(content)))),image(contentUrl)))';
+  const url  = 'https://slides.googleapis.com/v1/presentations/' + PRESENTATION_ID + '?fields=' + encodeURIComponent(fields);
+  const resp = UrlFetchApp.fetch(url, {
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    muteHttpExceptions: true,
+  });
+  if (resp.getResponseCode() !== 200) {
+    return jsonErr_('Slides API ' + resp.getResponseCode() + ': ' + resp.getContentText().slice(0, 300));
+  }
+
+  const raw    = JSON.parse(resp.getContentText()).slides || [];
+  const findLC = String(find || '').trim().toLowerCase();
+  const only   = slideParam ? parseInt(slideParam, 10) : 0;
+
+  const slides = raw.map((s, i) => {
+    const elements = (s.pageElements || []).map(pe => {
+      let text = '';
+      if (pe.shape && pe.shape.text && pe.shape.text.textElements) {
+        text = pe.shape.text.textElements.map(te => (te.textRun ? te.textRun.content : '')).join('').replace(/\s+/g, ' ').trim();
+      }
+      const t = pe.transform || {};
+      return {
+        id:   pe.objectId,
+        kind: pe.image ? 'image' : (pe.shape ? (pe.shape.shapeType || 'shape') : 'other'),
+        text: text.slice(0, 90),
+        x:    Math.round(t.translateX || 0),
+        y:    Math.round(t.translateY || 0),
+      };
+    });
+    const allText = elements.map(el => el.text).filter(Boolean).join(' | ');
+    return { n: i + 1, slideId: s.objectId, textPreview: allText.slice(0, 160), elements };
+  });
+
+  // Single slide detail
+  if (only) {
+    const one = slides[only - 1];
+    return jsonOk_({ slideCount: slides.length, slide: one || null });
+  }
+
+  // Filtered detail
+  if (findLC) {
+    const matched = slides.filter(sl => sl.elements.some(el => el.text.toLowerCase().includes(findLC)));
+    return jsonOk_({ slideCount: slides.length, matches: matched.length, slides: matched });
+  }
+
+  // Compact index (no per-element detail, to keep it small)
+  return jsonOk_({
+    presentationId: PRESENTATION_ID,
+    slideCount: slides.length,
+    index: slides.map(sl => ({ n: sl.n, slideId: sl.slideId, elements: sl.elements.length, textPreview: sl.textPreview })),
+  });
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────────
