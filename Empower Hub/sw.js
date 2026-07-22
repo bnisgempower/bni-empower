@@ -2,13 +2,14 @@
 // Caches the app shell so the hub loads instantly. The presenter roster is
 // always fetched fresh from the Apps Script endpoint (never cached).
 
-const CACHE_NAME = 'bni-empower-hub-v1';
+const CACHE_NAME = 'bni-empower-hub-v2';
 
 const SHELL = [
   './',
   './index.html',
-  './icon.svg',
   './manifest.json',
+  './icon-192.png',
+  './apple-touch-icon.png',
 ];
 
 // ── Install — cache the app shell ────────────────────
