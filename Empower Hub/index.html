@@ -309,6 +309,67 @@
     .copy-btn .cc svg { width: 15px; height: 15px; }
     .copy-btn.copied { border-color: var(--success); }
     .copy-btn.copied .cc { color: var(--success); }
+
+    /* ── Sign-in chip + modal ───────────────────────────── */
+    .signin-chip {
+      font-family: inherit; cursor: pointer;
+      background: var(--gold-dim); border: 1px solid var(--gold-border);
+      color: var(--gold-bright); font-size: 12px; font-weight: 600;
+      padding: 3px 10px; border-radius: 20px; margin-left: 8px;
+      vertical-align: middle;
+    }
+    .signin-chip:active { transform: scale(.96); }
+
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 60;
+      background: rgba(0,0,0,.6); backdrop-filter: blur(3px);
+      display: flex; align-items: flex-end; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 200ms ease;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: auto; }
+    .modal-card {
+      width: 100%; max-width: 460px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r-lg) var(--r-lg) 0 0;
+      padding: 22px 20px max(env(safe-area-inset-bottom), 22px);
+      transform: translateY(16px); transition: transform 240ms cubic-bezier(.22,.61,.36,1);
+    }
+    .modal-overlay.open .modal-card { transform: translateY(0); }
+    @media (min-width: 480px) {
+      .modal-overlay { align-items: center; }
+      .modal-card { border-radius: var(--r-lg); }
+    }
+    .modal-card h3 { font-size: 19px; font-weight: 800; letter-spacing: -.3px; }
+    .modal-sub { font-size: 13px; color: var(--text-muted); margin: 6px 0 16px; line-height: 1.45; }
+    .modal-select {
+      width: 100%; font-family: inherit; font-size: 16px; color: var(--text);
+      background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r);
+      padding: 13px 14px; -webkit-appearance: none; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 12px center; background-size: 20px;
+    }
+    .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+    .modal-btn {
+      flex: 1; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+      padding: 13px; border-radius: var(--r); border: 1px solid var(--border);
+    }
+    .modal-btn.ghost { background: none; color: var(--text-muted); }
+    .modal-btn.primary { background: var(--gold); color: #0d0d0d; border-color: var(--gold); }
+    .modal-btn.primary:disabled { opacity: .45; cursor: default; }
+    .modal-btn:active { transform: scale(.98); }
+
+    /* ── Upcoming presenter week cards ──────────────────── */
+    #upcomingWrap { display: flex; flex-direction: column; gap: 12px; }
+    .week-date {
+      font-size: 15px; font-weight: 800; letter-spacing: -.2px; line-height: 1.25;
+      padding-bottom: 4px;
+    }
+    .week-tag {
+      display: inline-block; font-size: 11px; font-weight: 700; color: var(--gold-bright);
+      background: var(--gold-dim); border: 1px solid var(--gold-border);
+      padding: 1px 8px; border-radius: 20px; margin-bottom: 8px;
+    }
+    .pres-name.multi { white-space: normal; }
   </style>
 </head>
 <body>
@@ -325,14 +386,17 @@
     <!-- Greeting -->
     <div class="greeting">
       <h2 id="greeting">Welcome 👋</h2>
-      <p id="greetingSub">Everything you need for this week, in one place.</p>
+      <p id="greetingSub">
+        <span id="greetingText">Everything you need for this week, in one place.</span>
+        <button type="button" id="signInBtn" class="signin-chip" hidden></button>
+      </p>
     </div>
 
-    <!-- Next Meeting -->
+    <!-- Upcoming Presenters -->
     <section>
-      <div class="sec-title">Next Meeting</div>
-      <div class="meeting-card">
-        <div id="meetingBody">
+      <div class="sec-title">Upcoming Presenters</div>
+      <div id="upcomingWrap">
+        <div class="meeting-card">
           <div class="meeting-skeleton">
             <div class="skel w60"></div>
             <div class="skel w80"></div>
@@ -383,6 +447,21 @@
     <div class="subview-body" id="linksBody"></div>
   </div>
 
+  <!-- ── Sign-in modal (device-remembered member) ──────────── -->
+  <div class="modal-overlay" id="signinModal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="signinTitle">
+      <h3 id="signinTitle">Who are you?</h3>
+      <p class="modal-sub">We'll remember you on this phone so the app greets you and pre-fills your check-in. Nothing leaves your device.</p>
+      <select id="memberSelect" class="modal-select">
+        <option value="" disabled selected>Select your name…</option>
+      </select>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn ghost" id="signinSkip">Not now</button>
+        <button type="button" class="modal-btn primary" id="signinSave" disabled>Save</button>
+      </div>
+    </div>
+  </div>
+
   <script>
   /* ════════════════════════════════════════════════════════════════════════
      CONFIG — edit the values in this block, then re-deploy.
@@ -409,8 +488,8 @@
   // type 'link' = a labelled button that opens the url.
   // type 'zoom' = a Join button plus copy-able Meeting ID & Passcode buttons.
   const LINKS_PAGE = [
-    { type: 'link', label: 'New Members Onboarding',        desc: 'Register a new member',      url: 'https://tinyurl.com/BNISGEmpowerOnboarding', icon: 'id'    },
-    { type: 'link', label: 'Admin Access — Google Sheets',  desc: 'Officers only',              url: 'https://tinyurl.com/BNISGEmpowerAdmin',      icon: 'sheet' },
+    { type: 'link', label: 'New Members Onboarding', desc: 'Onboard a new member', url: 'https://tinyurl.com/BNISGEmpowerOnboarding', icon: 'id'    },
+    { type: 'link', label: 'Admin Access',           desc: 'MC Team Only',         url: 'https://tinyurl.com/BNISGEmpowerAdmin',      icon: 'sheet' },
     { type: 'zoom', label: 'Weekly Zoom Meeting',           url: 'https://bnionline.zoom.us/j/95446059798?pwd=iVDHmWPW9wSuCXBLVObtH9KxzcQZwA.1', meetingId: '954 4605 9798', passcode: '100326', icon: 'video' },
   ];
 
@@ -445,13 +524,61 @@
   const svg = (key) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[key] || ICONS.link) + '</svg>';
   const chev = '<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>';
 
-  // ── Greeting (time of day) ──
-  (function () {
+  // ── Sign-in (device-remembered member) + greeting ──
+  const MEMBER_KEY  = 'bni_member';   // same key the Check-In app uses → shared "remember me"
+  const gEl         = document.getElementById('greeting');
+  const gTextEl     = document.getElementById('greetingText');
+  const signInBtn   = document.getElementById('signInBtn');
+  const signinModal = document.getElementById('signinModal');
+  const memberSelect= document.getElementById('memberSelect');
+  const saveBtn     = document.getElementById('signinSave');
+
+  function timePart() {
     const h = new Date().getHours();
-    const part = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-    const saved = localStorage.getItem('bni_member');
+    return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  }
+  function renderGreeting() {
+    const saved = localStorage.getItem(MEMBER_KEY);
     const first = saved ? saved.split(' ')[0] : '';
-    document.getElementById('greeting').textContent = part + (first ? ', ' + first : '') + ' 👋';
+    gEl.textContent = timePart() + (first ? ', ' + first : '') + ' 👋';
+    signInBtn.hidden = false;
+    if (saved) { gTextEl.textContent = 'Welcome back.'; signInBtn.textContent = 'Not you?'; }
+    else       { gTextEl.textContent = 'Tap to personalise this app.'; signInBtn.textContent = '👤 Sign in'; }
+  }
+  renderGreeting();
+
+  function openSignin()  { signinModal.classList.add('open');  signinModal.setAttribute('aria-hidden', 'false'); }
+  function closeSignin() { signinModal.classList.remove('open'); signinModal.setAttribute('aria-hidden', 'true'); }
+  signInBtn.addEventListener('click', openSignin);
+  document.getElementById('signinSkip').addEventListener('click', closeSignin);
+  signinModal.addEventListener('click', e => { if (e.target === signinModal) closeSignin(); });
+  memberSelect.addEventListener('change', () => { saveBtn.disabled = !memberSelect.value; });
+  saveBtn.addEventListener('click', () => {
+    if (!memberSelect.value) return;
+    localStorage.setItem(MEMBER_KEY, memberSelect.value);
+    renderGreeting();
+    closeSignin();
+  });
+
+  // Populate the member dropdown from the roster; gently prompt first-time visitors
+  (async function loadRoster() {
+    try {
+      const res  = await fetch(APPS_SCRIPT_URL + '?action=getRoster', { cache: 'no-store' });
+      const json = await res.json();
+      const members = json.members || [];
+      const saved = localStorage.getItem(MEMBER_KEY);
+      members.forEach(n => {
+        const o = document.createElement('option');
+        o.value = o.textContent = n;
+        if (n === saved) o.selected = true;
+        memberSelect.appendChild(o);
+      });
+      if (saved && members.includes(saved)) saveBtn.disabled = false;
+      if (!saved && members.length && !localStorage.getItem('bni_signin_prompted')) {
+        localStorage.setItem('bni_signin_prompted', '1');
+        openSignin();
+      }
+    } catch (_) { /* offline — greeting still works, picker just has no options */ }
   })();
 
   // ── Wire the check-in CTA & onboarding link ──
@@ -593,76 +720,58 @@
     });
   })();
 
-  // ── Load Next Meeting presenters ──
-  const PRES_ROWS = [
-    { key: 'coreValue',  role: 'Core Value',          icon: 'heart' },
-    { key: 'networkEdu', role: 'Network Education',   icon: 'mic'   },
-    { key: 'featured',   role: 'Featured Presentation', icon: 'star' },
-  ];
-
+  // ── Upcoming Presenters (this week + next) ──
   function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
-  function renderMeeting(next, upcoming) {
-    const body = document.getElementById('meetingBody');
-    if (!next) {
-      body.innerHTML = '<div style="padding:8px 2px 16px;color:var(--text-muted);font-size:14px">' +
-        'No upcoming meeting scheduled yet. The roster will appear here once it\'s planned.</div>';
-      return;
-    }
-    const online = /online|virtual/i.test(next.type || '');
-    let html =
-      '<div class="meeting-top">' +
-        '<div><div class="meeting-date">' + esc(next.date || 'Next meeting') + '</div>' +
-        '<div class="meeting-sub">Who\'s on stage this week</div></div>' +
-        (next.type ? '<span class="badge ' + (online ? 'online' : '') + '">' + esc(next.type) + '</span>' : '') +
-      '</div>';
+  const PRES_ROWS = [
+    { key: 'networkEdu', role: 'Network Education',     icon: 'mic'   },
+    { key: 'coreValue',  role: 'Core Value Sharing',    icon: 'heart' },
+    { key: 'featured',   role: 'Featured Presentation', icon: 'star'  },
+  ];
+  const WEEK_TAGS = ['This week', 'Next week'];
 
-    PRES_ROWS.forEach(r => {
-      const name = (next[r.key] || '').trim();
-      html +=
-        '<div class="pres-row">' +
-          '<span class="pres-icon">' + svg(r.icon) + '</span>' +
-          '<span class="pres-meta"><div class="pres-role">' + r.role + '</div>' +
-          '<div class="pres-name ' + (name ? '' : 'tbc') + '">' + (name ? esc(name) : 'To be confirmed') + '</div></span>' +
-        '</div>';
-    });
-
-    // Upcoming (beyond the next meeting)
-    const rest = (upcoming || []).slice(1);
-    if (rest.length) {
-      html += '<button class="upcoming-toggle" id="upToggle">View upcoming weeks (' + rest.length + ') ▾</button>' +
-              '<div class="upcoming-list" id="upList">' +
-              rest.map(u =>
-                '<div class="up-item"><div class="up-date">' + esc(u.date || '') +
-                (u.type ? ' · ' + esc(u.type) : '') + '</div>' +
-                '<div class="up-roles">' +
-                  'Core Value: <b>' + esc(u.coreValue || 'TBC') + '</b><br>' +
-                  'Network Edu: <b>' + esc(u.networkEdu || 'TBC') + '</b><br>' +
-                  'Featured: <b>' + esc(u.featured || 'TBC') + '</b>' +
-                '</div></div>'
-              ).join('') +
-              '</div>';
-    }
-
-    body.innerHTML = html;
-
-    const toggle = document.getElementById('upToggle');
-    if (toggle) toggle.addEventListener('click', () => {
-      const l = document.getElementById('upList');
-      const open = l.classList.toggle('open');
-      toggle.innerHTML = open ? 'Hide upcoming weeks ▴' : 'View upcoming weeks (' + rest.length + ') ▾';
-    });
+  function presName(item, key) {
+    const v = item[key];
+    return Array.isArray(v) ? v.filter(Boolean).join(' & ') : (v || '').trim();
   }
 
-  (async function loadMeeting() {
+  function renderUpcoming(upcoming) {
+    const wrap  = document.getElementById('upcomingWrap');
+    const weeks = (upcoming || []).slice(0, 2);
+    if (!weeks.length) {
+      wrap.innerHTML = '<div class="meeting-card"><div style="padding:6px 2px;color:var(--text-muted);font-size:14px">' +
+        'No upcoming meetings scheduled yet — they\'ll appear here once the Roster is filled in.</div></div>';
+      return;
+    }
+    wrap.innerHTML = weeks.map((wk, i) => {
+      let rows = '';
+      PRES_ROWS.forEach(r => {
+        const name  = presName(wk, r.key);
+        const multi = r.key === 'featured' && Array.isArray(wk.featured) && wk.featured.length > 1;
+        rows +=
+          '<div class="pres-row">' +
+            '<span class="pres-icon">' + svg(r.icon) + '</span>' +
+            '<span class="pres-meta"><div class="pres-role">' + r.role + '</div>' +
+            '<div class="pres-name ' + (name ? (multi ? 'multi' : '') : 'tbc') + '">' +
+              (name ? esc(name) : 'To be confirmed') + '</div></span>' +
+          '</div>';
+      });
+      return '<div class="meeting-card">' +
+        '<span class="week-tag">' + (WEEK_TAGS[i] || 'Upcoming') + '</span>' +
+        '<div class="week-date">' + esc(wk.date || '') + '</div>' +
+        rows + '</div>';
+    }).join('');
+  }
+
+  (async function loadUpcoming() {
+    const wrap = document.getElementById('upcomingWrap');
     try {
       const res  = await fetch(APPS_SCRIPT_URL + '?action=getNextPresenters', { cache: 'no-store' });
       const json = await res.json();
-      renderMeeting(json.next, json.upcoming);
+      renderUpcoming(json.upcoming);
     } catch (e) {
-      document.getElementById('meetingBody').innerHTML =
-        '<div style="padding:8px 2px 16px;color:var(--danger);font-size:13px">' +
-        'Couldn\'t load the roster right now. Pull to refresh, or check back later.</div>';
+      wrap.innerHTML = '<div class="meeting-card"><div style="padding:6px 2px;color:var(--danger);font-size:13px">' +
+        'Couldn\'t load the roster right now. Pull to refresh, or check back later.</div></div>';
     }
   })();
 

@@ -518,54 +518,53 @@ function getPowerTeams_() {
   return jsonOk_({ teams });
 }
 
-// ── Next Meeting presenters (read live by the Member Hub) ─────────────────────
+// ── Upcoming presenters (read live by the Member Hub) ─────────────────────────
 /**
- * Reads the Roster sheet and returns the presenters for the NEXT meeting
- * (the first row whose date is today or later). Also returns a short list of
- * upcoming meetings so the hub can show a schedule.
+ * Reads the Roster sheet and returns the upcoming meetings (today or later),
+ * soonest first, so the hub can show this week + the week after.
  *
- * Roster columns (from setupRosterSheet):
- *   A: Meeting Date | B: Meeting Type | C: Network Education | D: Core Value | E: Featured Presentation
+ * Roster layout (live "Official BNI Empower Attendance 2026"):
+ *   Row 1 = headers.  Data from row 2.
+ *   A: Meeting Date
+ *   C: Network Education
+ *   D: Core Value Sharing
+ *   E: Featured Presentation (presenter 1)
+ *   F: Featured Presentation (presenter 2 — optional; blank if only one)
  */
 function getNextPresenters_() {
   const ss    = SpreadsheetApp.openById(SHEET_ID);
   const sheet = ss.getSheetByName(SN.ROSTER);
   if (!sheet || sheet.getLastRow() < 2) {
-    return jsonOk_({ next: null, upcoming: [] });
+    return jsonOk_({ upcoming: [] });
   }
 
   const tz    = Session.getScriptTimeZone();
   const now   = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // midnight today
 
-  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 5).getValues();
+  const rows  = sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).getValues(); // A..F
+  const clean = v => { const s = String(v).trim(); return (s && s !== '-') ? s : ''; };
 
   const parsed = rows.map(r => {
-    const rawDate = r[0];
-    let dateObj = (rawDate instanceof Date) ? rawDate : new Date(String(rawDate).trim());
+    let dateObj = (r[0] instanceof Date) ? r[0] : new Date(String(r[0]).trim());
     if (isNaN(dateObj.getTime())) dateObj = null;
-    const clean = v => { const s = String(v).trim(); return (s && s !== '-') ? s : ''; };
     return {
       dateObj,
-      date:        dateObj ? Utilities.formatDate(dateObj, tz, 'EEEE, dd MMM yyyy') : String(rawDate).trim(),
-      type:        String(r[1]).trim().toLowerCase().includes('physical') ? 'Physical' : (clean(r[1]) ? 'Online' : ''),
-      networkEdu:  clean(r[2]),
-      coreValue:   clean(r[3]),
-      featured:    clean(r[4]),
+      date:       dateObj ? Utilities.formatDate(dateObj, tz, 'EEEE, dd MMM yyyy') : clean(r[0]),
+      networkEdu: clean(r[2]),                         // C
+      coreValue:  clean(r[3]),                         // D
+      featured:   [clean(r[4]), clean(r[5])].filter(Boolean), // E + F (0, 1 or 2 names)
     };
   }).filter(p => p.dateObj); // keep only rows with a real date
 
   parsed.sort((a, b) => a.dateObj - b.dateObj);
 
-  const upcoming = parsed.filter(p => p.dateObj >= today);
-  const next     = upcoming.length ? upcoming[0] : (parsed.length ? parsed[parsed.length - 1] : null);
+  const upcoming = parsed
+    .filter(p => p.dateObj >= today)
+    .slice(0, 4)
+    .map(p => ({ date: p.date, networkEdu: p.networkEdu, coreValue: p.coreValue, featured: p.featured }));
 
-  const strip = p => p ? { date: p.date, type: p.type, networkEdu: p.networkEdu, coreValue: p.coreValue, featured: p.featured } : null;
-
-  return jsonOk_({
-    next:     strip(next),
-    upcoming: upcoming.slice(0, 6).map(strip),
-  });
+  return jsonOk_({ upcoming });
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────────
