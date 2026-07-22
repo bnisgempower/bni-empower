@@ -228,6 +228,87 @@
 
     footer { text-align: center; font-size: 11px; color: var(--text-dim); padding: 28px 16px 8px; line-height: 1.6; }
     footer a { color: var(--text-muted); text-decoration: underline; }
+
+    /* ── Links sub-page (in-app view) ───────────────────── */
+    .subview {
+      position: fixed; inset: 0; z-index: 40;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 280ms cubic-bezier(.22,.61,.36,1);
+      visibility: hidden;
+      overflow: hidden;
+    }
+    .subview.open { transform: translateX(0); visibility: visible; }
+    .subview-header {
+      display: flex; align-items: center; gap: 6px;
+      padding: 14px 12px; border-bottom: 1px solid var(--border);
+      background: var(--bg2); position: sticky; top: 0;
+      padding-top: max(env(safe-area-inset-top), 14px);
+    }
+    .back-btn {
+      width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+      background: none; border: 0; color: var(--text); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .back-btn:active { background: var(--surface2); }
+    .subview-title { font-size: 17px; font-weight: 800; letter-spacing: -.2px; }
+    .subview-body {
+      flex: 1; overflow-y: auto;
+      width: 100%; max-width: 500px; margin: 0 auto;
+      padding: 18px 16px max(env(safe-area-inset-bottom), 28px);
+      display: flex; flex-direction: column; gap: 12px;
+    }
+
+    /* Link button (row style, taller) */
+    .link-btn {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+      padding: 16px; display: flex; align-items: center; gap: 14px;
+      transition: border-color var(--tr), transform var(--tr), background var(--tr);
+    }
+    .link-btn:active { transform: scale(.98); }
+    @media (hover: hover) { .link-btn:hover { border-color: var(--gold-border); background: var(--surface2); } }
+    .link-btn .row-icon { width: 40px; height: 40px; flex-shrink: 0; border-radius: 10px;
+      background: var(--gold-dim); border: 1px solid var(--gold-border);
+      display: flex; align-items: center; justify-content: center; color: var(--gold-bright); }
+    .link-btn .row-icon svg { width: 20px; height: 20px; }
+    .link-btn .row-body { flex: 1; min-width: 0; }
+    .link-btn .row-label { font-size: 15px; font-weight: 700; }
+    .link-btn .row-desc  { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+
+    /* Zoom card */
+    .zoom-card {
+      background: linear-gradient(160deg, var(--surface) 0%, var(--bg2) 100%);
+      border: 1px solid var(--gold-border); border-radius: var(--r-lg);
+      padding: 16px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .zoom-head { display: flex; align-items: center; gap: 12px; }
+    .zoom-head .row-icon { width: 40px; height: 40px; flex-shrink: 0; border-radius: 10px;
+      background: var(--gold-dim); border: 1px solid var(--gold-border);
+      display: flex; align-items: center; justify-content: center; color: var(--gold-bright); }
+    .zoom-head .row-icon svg { width: 20px; height: 20px; }
+    .zoom-title { font-size: 15px; font-weight: 800; }
+    .zoom-join {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      background: var(--gold); color: #0d0d0d; font-weight: 800; font-size: 15px;
+      border-radius: var(--r); padding: 13px; margin-top: 2px;
+    }
+    .zoom-join:active { transform: scale(.98); }
+    .copy-row { display: flex; gap: 10px; }
+    .copy-btn {
+      flex: 1; text-align: left; cursor: pointer; font-family: inherit;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r-sm);
+      padding: 10px 12px; color: var(--text);
+      display: flex; flex-direction: column; gap: 2px; position: relative;
+      transition: border-color var(--tr), background var(--tr);
+    }
+    .copy-btn:active { transform: scale(.98); }
+    .copy-btn .cl { font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .6px; font-weight: 600; }
+    .copy-btn .cv { font-size: 15px; font-weight: 700; letter-spacing: .3px; }
+    .copy-btn .cc { position: absolute; top: 8px; right: 10px; color: var(--text-dim); }
+    .copy-btn .cc svg { width: 15px; height: 15px; }
+    .copy-btn.copied { border-color: var(--success); }
+    .copy-btn.copied .cc { color: var(--success); }
   </style>
 </head>
 <body>
@@ -287,10 +368,20 @@
     </section>
 
     <footer>
-      BNI Empower &middot; Members meet every Tuesday<br>
-      <a href="#" id="onboardLink" target="_blank" rel="noopener">New member? Complete your onboarding →</a>
+      BNI Empower &middot; Members meet every Tuesday
     </footer>
   </main>
+
+  <!-- ── Links sub-page (opens inside the app) ─────────────── -->
+  <div class="subview" id="linksView" aria-hidden="true">
+    <header class="subview-header">
+      <button class="back-btn" id="linksBack" aria-label="Back" type="button">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="subview-title">Links</div>
+    </header>
+    <div class="subview-body" id="linksBody"></div>
+  </div>
 
   <script>
   /* ════════════════════════════════════════════════════════════════════════
@@ -303,16 +394,24 @@
   // Where the Weekly Check-In app is deployed (GitHub Pages).
   const CHECKIN_URL  = 'https://bnisgempower.github.io/BNI_Sg_Empower/BNI%20Empower%20Weekly%20Check%20In.html';
 
-  // New-member onboarding form (onboarding.html). Set to '' to hide the footer link.
-  const ONBOARD_URL  = 'https://bnisgempower.github.io/BNI_Sg_Empower/onboarding.html';
-
-  // ── Chapter Resources — Google Drive folders ──
+  // ── Chapter Resources — Google Drive folders + the in-app Links page ──
   // Each: { label, desc, url, icon }.  icon = key from ICONS below.
-  // NOTE: each folder must be shared "Anyone with the link → Viewer" or members hit "request access".
+  // A row with `internal: 'links'` opens the Links sub-page instead of a URL.
+  // NOTE: each Drive folder must be shared "Anyone with the link → Viewer" or members hit "request access".
   const RESOURCES = [
     { label: 'Member Resources',          desc: 'Chapter documents & guides', url: 'https://drive.google.com/drive/folders/1_R-mePuvxeSxQ6mNqYYUe7t2MJKRime2', icon: 'folder' },
     { label: 'Zoom Recordings',           desc: 'Past meeting replays',        url: 'https://drive.google.com/drive/folders/1VR2hmvfnHas58JvBunNdRKtYPGp6v7Pt', icon: 'video'  },
     { label: 'Featured Presentation Slides', desc: 'Past featured decks',      url: 'https://drive.google.com/drive/folders/1MkKypjwZNsHd1SuZdOK3oVo2RcFH0M9A', icon: 'slides' },
+    { label: 'Links',                     desc: 'Zoom, onboarding & admin',    internal: 'links', icon: 'link' },
+  ];
+
+  // ── Links sub-page — buttons that open inside the app ──
+  // type 'link' = a labelled button that opens the url.
+  // type 'zoom' = a Join button plus copy-able Meeting ID & Passcode buttons.
+  const LINKS_PAGE = [
+    { type: 'link', label: 'New Members Onboarding',        desc: 'Register a new member',      url: 'https://tinyurl.com/BNISGEmpowerOnboarding', icon: 'id'    },
+    { type: 'link', label: 'Admin Access — Google Sheets',  desc: 'Officers only',              url: 'https://tinyurl.com/BNISGEmpowerAdmin',      icon: 'sheet' },
+    { type: 'zoom', label: 'Weekly Zoom Meeting',           url: 'https://bnionline.zoom.us/j/95446059798?pwd=iVDHmWPW9wSuCXBLVObtH9KxzcQZwA.1', meetingId: '954 4605 9798', passcode: '100326', icon: 'video' },
   ];
 
   // ── Quick Links — internal tools & handy pages (optional) ──
@@ -366,9 +465,6 @@
     } else {
       cta.href = CHECKIN_URL;
     }
-    const ob = document.getElementById('onboardLink');
-    if (isPlaceholder(ONBOARD_URL)) ob.parentElement.removeChild(ob);
-    else ob.href = ONBOARD_URL;
   })();
 
   // ── Render Resources ──
@@ -377,12 +473,16 @@
     const note = document.getElementById('resPlaceholder');
     let unset = 0;
     RESOURCES.forEach(r => {
-      const live = !isPlaceholder(r.url);
-      if (!live) unset++;
       const a = document.createElement('a');
       a.className = 'tile';
-      if (live) { a.href = r.url; a.target = '_blank'; a.rel = 'noopener'; }
-      else { a.style.opacity = '.5'; }
+      if (r.internal === 'links') {
+        a.href = '#links';
+        a.addEventListener('click', e => { e.preventDefault(); openLinks(); });
+      } else {
+        const live = !isPlaceholder(r.url);
+        if (!live) { unset++; a.style.opacity = '.5'; }
+        else { a.href = r.url; a.target = '_blank'; a.rel = 'noopener'; }
+      }
       a.innerHTML =
         '<span class="tile-icon">' + svg(r.icon) + '</span>' +
         '<span><span class="tile-label">' + r.label + '</span>' +
@@ -414,6 +514,83 @@
       list.previousElementSibling.style.display = 'none'; // hide section title
       list.style.display = 'none';
     }
+  })();
+
+  // ── Links sub-page (in-app view) ──
+  const linksView = document.getElementById('linksView');
+
+  function openLinks() {
+    if (linksView.classList.contains('open')) return;
+    history.pushState({ sub: 'links' }, '');
+    linksView.classList.add('open');
+    linksView.setAttribute('aria-hidden', 'false');
+    linksView.querySelector('.subview-body').scrollTop = 0;
+  }
+  function closeLinks() {
+    linksView.classList.remove('open');
+    linksView.setAttribute('aria-hidden', 'true');
+  }
+
+  (function renderLinks() {
+    const body = document.getElementById('linksBody');
+    const COPY_ICON  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+    const CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+
+    LINKS_PAGE.forEach(item => {
+      if (item.type === 'zoom') {
+        const card = document.createElement('div');
+        card.className = 'zoom-card';
+        card.innerHTML =
+          '<div class="zoom-head"><span class="row-icon">' + svg(item.icon || 'video') + '</span>' +
+            '<span class="zoom-title">' + esc(item.label || 'Zoom Meeting') + '</span></div>' +
+          '<a class="zoom-join" href="' + esc(item.url) + '" target="_blank" rel="noopener">' +
+            svg('video') + ' Join Zoom Meeting</a>' +
+          '<div class="copy-row">' +
+            '<button class="copy-btn" type="button" data-copy="' + esc(item.meetingId) + '">' +
+              '<span class="cc">' + COPY_ICON + '</span>' +
+              '<span class="cl">Meeting ID</span><span class="cv">' + esc(item.meetingId) + '</span></button>' +
+            '<button class="copy-btn" type="button" data-copy="' + esc(item.passcode) + '">' +
+              '<span class="cc">' + COPY_ICON + '</span>' +
+              '<span class="cl">Passcode</span><span class="cv">' + esc(item.passcode) + '</span></button>' +
+          '</div>';
+        body.appendChild(card);
+      } else {
+        const a = document.createElement('a');
+        a.className = 'link-btn';
+        a.href = item.url; a.target = '_blank'; a.rel = 'noopener';
+        a.innerHTML =
+          '<span class="row-icon">' + svg(item.icon) + '</span>' +
+          '<span class="row-body"><div class="row-label">' + esc(item.label) + '</div>' +
+          (item.desc ? '<div class="row-desc">' + esc(item.desc) + '</div>' : '') + '</span>' + chev;
+        body.appendChild(a);
+      }
+    });
+
+    // Copy-to-clipboard with visual feedback
+    body.addEventListener('click', async e => {
+      const btn = e.target.closest('.copy-btn');
+      if (!btn) return;
+      const text = btn.getAttribute('data-copy');
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (_) {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); } catch (_) {}
+        document.body.removeChild(ta);
+      }
+      const cc = btn.querySelector('.cc');
+      if (btn._prev === undefined) btn._prev = cc.innerHTML;
+      btn.classList.add('copied'); cc.innerHTML = CHECK_ICON;
+      clearTimeout(btn._t);
+      btn._t = setTimeout(() => { btn.classList.remove('copied'); cc.innerHTML = btn._prev; }, 1600);
+    });
+
+    document.getElementById('linksBack').addEventListener('click', () => history.back());
+    window.addEventListener('popstate', () => {
+      if (linksView.classList.contains('open')) closeLinks();
+    });
   })();
 
   // ── Load Next Meeting presenters ──
