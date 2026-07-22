@@ -10,7 +10,7 @@
  */
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 const SHEET_ID          = '1cmBnBAiOWPB71oXmJEUMzCIam7RffTb0INPVM4TNhGw';
-const PRESENTATION_ID   = '14C1-Q5SuH7MeUtPWHdPQaezR8sICNISPmm20XAcJF24';
+const PRESENTATION_ID   = '1inhHToZYqXes1zjUT6T8czAVOqU4jXQW7HghDBadpX0';
 const HEADSHOTS_FOLDER_ID = '1Cb2JJpoTOttma0iKKX-1-TY5hyU_N9sW';
 const LOGOS_FOLDER_ID     = '1R2jzxXnvlfcYUnYVw_TzmbrPhgS9NZbq';
 
