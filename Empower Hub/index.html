@@ -198,8 +198,9 @@
       display: flex; align-items: center; justify-content: center; color: var(--gold-bright);
     }
     .tile-icon svg { width: 20px; height: 20px; }
-    .tile-label { font-size: 14px; font-weight: 700; line-height: 1.25; }
-    .tile-desc  { font-size: 11.5px; color: var(--text-muted); line-height: 1.35; margin-top: -4px; }
+    .tile-text  { display: flex; flex-direction: column; gap: 4px; }
+    .tile-label { font-size: 14px; font-weight: 700; line-height: 1.3; }
+    .tile-desc  { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
     .tile-full  { grid-column: 1 / -1; flex-direction: row; align-items: center; min-height: 0; }
     .tile-full .tile-body { flex: 1; }
 
@@ -435,7 +436,7 @@
 
     <!-- Resources (Drive) -->
     <section>
-      <div class="sec-title">Chapter Resources</div>
+      <div class="sec-title">Chapter Member Resources</div>
       <div class="placeholder-note" id="resPlaceholder" hidden></div>
       <div class="grid" id="resourcesGrid"></div>
     </section>
@@ -641,8 +642,8 @@
       }
       a.innerHTML =
         '<span class="tile-icon">' + svg(r.icon) + '</span>' +
-        '<span><span class="tile-label">' + r.label + '</span>' +
-        (r.desc ? '<div class="tile-desc">' + r.desc + '</div>' : '') + '</span>';
+        '<span class="tile-text"><span class="tile-label">' + r.label + '</span>' +
+        (r.desc ? '<span class="tile-desc">' + r.desc + '</span>' : '') + '</span>';
       grid.appendChild(a);
     });
     if (unset > 0) {
