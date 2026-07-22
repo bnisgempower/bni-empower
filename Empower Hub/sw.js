@@ -2,7 +2,7 @@
 // Caches the app shell so the hub loads instantly. The presenter roster is
 // always fetched fresh from the Apps Script endpoint (never cached).
 
-const CACHE_NAME = 'bni-empower-hub-v2';
+const CACHE_NAME = 'bni-empower-hub-v3';
 
 const SHELL = [
   './',
@@ -38,6 +38,20 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Network-first for the page itself, so design/content updates show up
+  // immediately when online (fall back to cache only when offline).
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).then(response => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        return response;
+      }).catch(() => caches.match(event.request).then(c => c || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  // Cache-first for static assets (icons, manifest, fonts)
   event.respondWith(
     caches.match(event.request).then(cached =>
       cached || fetch(event.request).then(response => {
@@ -47,10 +61,6 @@ self.addEventListener('fetch', event => {
         }
         return response;
       })
-    ).catch(() => {
-      if (event.request.mode === 'navigate') {
-        return caches.match('./index.html') || caches.match('./');
-      }
-    })
+    )
   );
 });
