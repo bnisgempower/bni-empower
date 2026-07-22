@@ -37,6 +37,7 @@ const SN = {
   ROSTER:            'Roster',
   SLIDE_MAP:         'Slide_Map',      // Support Team box positions (editable slide→box map)
   INTRO_SLIDES:      'Intro_Slides',   // 30-sec intro slide objectIds per member
+  COMMITTEE_REPORT:  'Committee_Report', // VP weekly numbers + running totals
 };
 
 // ROSTER is read live from Active_Members cols C+D (First Name + Surname)
@@ -78,6 +79,7 @@ function doGet(e) {
   if (action === 'getPowerTeams')        return getPowerTeams_();
   if (action === 'getRoster')            return jsonOk_({ members: getRoster_() });
   if (action === 'getNextPresenters')    return getNextPresenters_();
+  if (action === 'getCommitteeTotals')   return getCommitteeTotalsAction_();
   if (action === 'dumpSlides')           return (e.parameter.pin === ADMIN_PIN)
                                             ? dumpSlides_(e.parameter.find || '', e.parameter.slide || '')
                                             : jsonErr_('Invalid PIN');
@@ -242,6 +244,12 @@ function doPost(e) {
     if (data.formType === 'newMember') {
       writeNewMember_(data);
       return jsonOk_({ written: true, member: data.fullName });
+    }
+
+    if (data.formType === 'committeeReport') {
+      if (data.pin !== ADMIN_PIN) return jsonErr_('Invalid PIN');
+      const totals = writeCommitteeReport_(data);
+      return jsonOk_({ written: true, totals, display: committeeDisplay_(totals) });
     }
 
     writeSubmission_(data);
@@ -630,6 +638,121 @@ function dumpSlides_(find, slideParam) {
     slideCount: slides.length,
     index: slides.map(sl => ({ n: sl.n, slideId: sl.slideId, elements: sl.elements.length, textPreview: sl.textPreview })),
   });
+}
+
+// ── VP Committee Report → Slide 98 running totals ─────────────────────────────
+// The VP submits THIS WEEK's numbers from a phone form; they auto-add to the
+// "Since Launch" totals on Slide 98 and are logged in the Committee_Report sheet.
+const STAT_SLIDE_ID = 'g3d1b184308e_0_0';   // Slide 98 — "BNI Empower Statistics (Since Launch)"
+const STAT_BOX = {
+  referrals: 'g3d1b184308e_0_10',   // "332 Referrals Passed"
+  visitors:  'g3d1b184308e_0_11',   // "89 Visitors Invited"
+  business:  'g3d1b184308e_0_12',   // "$209,288 Business Done"
+};
+// Starting totals currently on the slide — used only when Committee_Report is empty.
+const STAT_SEED = { referrals: 332, visitors: 89, business: 209288 };
+
+function fmtInt_(n) { return Number(n || 0).toLocaleString('en-US'); }
+
+function committeeDisplay_(t) {
+  return {
+    referrals: fmtInt_(t.referrals),
+    visitors:  fmtInt_(t.visitors),
+    business:  '$' + fmtInt_(t.business),
+  };
+}
+
+// Current running totals (last row of Committee_Report, else the seed).
+function getCommitteeTotals_() {
+  const ss    = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ss.getSheetByName(SN.COMMITTEE_REPORT);
+  if (sheet && sheet.getLastRow() >= 2) {
+    const last = sheet.getRange(sheet.getLastRow(), 6, 1, 3).getValues()[0]; // F,G,H
+    return {
+      referrals: Number(last[0]) || STAT_SEED.referrals,
+      visitors:  Number(last[1]) || STAT_SEED.visitors,
+      business:  Number(last[2]) || STAT_SEED.business,
+    };
+  }
+  return Object.assign({}, STAT_SEED);
+}
+
+function getCommitteeTotalsAction_() {
+  const t = getCommitteeTotals_();
+  return jsonOk_({ totals: t, display: committeeDisplay_(t) });
+}
+
+// Append this week's numbers, bump the totals, update the slide.
+function writeCommitteeReport_(data) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let sheet = ss.getSheetByName(SN.COMMITTEE_REPORT);
+  if (!sheet) {
+    sheet = ss.insertSheet(SN.COMMITTEE_REPORT);
+    sheet.getRange(1, 1, 1, 9)
+      .setValues([['Timestamp', 'Week Of', 'Referrals (wk)', 'Visitors (wk)', 'Business (wk)',
+                   'Referrals Total', 'Visitors Total', 'Business Total', 'Submitted By']])
+      .setFontWeight('bold').setBackground('#1a5276').setFontColor('#ffffff');
+    sheet.setFrozenRows(1);
+    [150, 150, 110, 110, 120, 120, 110, 130, 140].forEach((w, i) => sheet.setColumnWidth(i + 1, w));
+  }
+
+  const tz = Session.getScriptTimeZone();
+  const ts = Utilities.formatDate(new Date(), tz, "yyyy-MM-dd'T'HH:mm:ss");
+
+  const num = v => { const n = parseFloat(String(v).replace(/[^0-9.]/g, '')); return isNaN(n) ? 0 : n; };
+  const wk = {
+    referrals: Math.round(num(data.referrals)),
+    visitors:  Math.round(num(data.visitors)),
+    business:  Math.round(num(data.business)),
+  };
+
+  const prev = getCommitteeTotals_();
+  const next = {
+    referrals: prev.referrals + wk.referrals,
+    visitors:  prev.visitors  + wk.visitors,
+    business:  prev.business  + wk.business,
+  };
+
+  sheet.appendRow([
+    ts, data.weekOf || '',
+    wk.referrals, wk.visitors, wk.business,
+    next.referrals, next.visitors, next.business,
+    data.submittedBy || '',
+  ]);
+
+  updateStatSlideNumbers_(prev, next);
+  return next;
+}
+
+// Replace just the number tokens on Slide 98 (preserves each box's styling).
+function updateStatSlideNumbers_(prev, next) {
+  const tokens = [
+    { old: fmtInt_(prev.referrals),      neu: fmtInt_(next.referrals) },
+    { old: fmtInt_(prev.visitors),       neu: fmtInt_(next.visitors) },
+    { old: '$' + fmtInt_(prev.business), neu: '$' + fmtInt_(next.business) },
+  ];
+  const requests = tokens
+    .filter(t => t.old !== t.neu)
+    .map(t => ({
+      replaceAllText: {
+        containsText:  { text: t.old, matchCase: true },
+        replaceText:   t.neu,
+        pageObjectIds: [STAT_SLIDE_ID],
+      },
+    }));
+  if (!requests.length) return;
+
+  const url  = 'https://slides.googleapis.com/v1/presentations/' + PRESENTATION_ID + ':batchUpdate';
+  const resp = UrlFetchApp.fetch(url, {
+    method:      'post',
+    contentType: 'application/json',
+    headers:     { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    payload:     JSON.stringify({ requests }),
+    muteHttpExceptions: true,
+  });
+  if (resp.getResponseCode() !== 200) {
+    logError_('updateStatSlideNumbers_', new Error(resp.getContentText().slice(0, 300)));
+  }
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────────

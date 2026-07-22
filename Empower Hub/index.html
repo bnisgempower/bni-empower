@@ -520,6 +520,7 @@
   // type 'zoom' = a Join button plus copy-able Meeting ID & Passcode buttons.
   const LINKS_PAGE = [
     { type: 'link', label: 'New Members Onboarding', desc: 'Onboard a new member', url: 'https://tinyurl.com/BNISGEmpowerOnboarding', icon: 'id'    },
+    { type: 'link', label: 'VP Committee Report',    desc: 'MC Team Only',         url: 'https://bnisgempower.github.io/BNI_Sg_Empower/vp-report.html', icon: 'chart' },
     { type: 'link', label: 'Admin Access',           desc: 'MC Team Only',         url: 'https://tinyurl.com/BNISGEmpowerAdmin',      icon: 'sheet' },
     { type: 'zoom', label: 'Weekly Zoom Meeting',           url: 'https://bnionline.zoom.us/j/95446059798?pwd=iVDHmWPW9wSuCXBLVObtH9KxzcQZwA.1', meetingId: '954 4605 9798', passcode: '100326', icon: 'video' },
   ];
@@ -551,6 +552,7 @@
     mic:     '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 19v3"/>',
     heart:   '<path d="M12 21C7 17 3 13.5 3 9a4.5 4.5 0 0 1 9-1 4.5 4.5 0 0 1 9 1c0 4.5-4 8-9 12z"/>',
     link:    '<path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/>',
+    chart:   '<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>',
   };
   const svg = (key) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[key] || ICONS.link) + '</svg>';
   const chev = '<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>';
