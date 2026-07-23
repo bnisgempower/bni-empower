@@ -1236,8 +1236,10 @@ function renderTeamText_(teamName, slideId, slots) {
     const slot = norm(raw);
     const role = roles[i];
     if (!role) return;                                          // fewer members than cells
-    const curText = String(cur[slot.box] || '').replace(/\n+$/, '');
-    const parts   = curText.split('\n').map(p => p.trim());
+    // Cells break lines with \n OR a vertical-tab soft return (Shift+Enter in
+    // Slides). Split on every line-break type, drop blank lines.
+    const curText = String(cur[slot.box] || '');
+    const parts   = curText.split(/[\n\r\v\f\u0085\u2028\u2029]+/).map(p => p.trim()).filter(p => p.length);
     const need    = slot.role ? 3 : 2;                          // role cells need Role/Name/Trade
     if (parts.length < need) { skipped.push(slot.box); return; } // unsafe to split — leave it
 

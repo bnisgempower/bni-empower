@@ -330,6 +330,108 @@ function saveExport_(blob, fileName, folder) {
   return 'https://drive.google.com/uc?id=' + file.getId();
 }
 
+// ── One-time template scaffold ────────────────────────────────────────────────
+// Run ONCE from the Apps Script editor (Run → seedTemplate) on the EMPTY
+// template deck, AFTER setting File → Page setup → Custom → 21 × 29.7 cm (A4).
+// Builds the flyer layout: blue sidebar, all 9 token text boxes, static
+// headings, and grey placeholder shapes for headshot / photos / logo / QR.
+// After it runs, restyle everything freely in Slides — the generator only
+// needs each {{TOKEN}} to stay inside its own text box.
+const A4_W = 7560000, A4_H = 10692000; // 21 × 29.7 cm in EMU
+
+const C_BLUE  = { red: 0.12, green: 0.31, blue: 0.64 };   // sidebar
+const C_TEAL  = { red: 0.08, green: 0.63, blue: 0.66 };   // headings
+const C_NAVY  = { red: 0.08, green: 0.13, blue: 0.30 };   // body headings
+const C_WHITE = { red: 1,    green: 1,    blue: 1    };
+const C_DARK  = { red: 0.15, green: 0.15, blue: 0.15 };
+const C_GREY  = { red: 0.92, green: 0.92, blue: 0.92 };   // placeholder fill
+
+function seedTemplate() {
+  const pres = UrlFetchApp.fetch(
+    'https://slides.googleapis.com/v1/presentations/' + FLYER_TEMPLATE_ID + '?fields=slides.objectId,pageSize',
+    { headers: authHeader_(), muteHttpExceptions: true });
+  if (pres.getResponseCode() !== 200) throw new Error('Cannot read template: ' + pres.getContentText().slice(0, 200));
+  const info = JSON.parse(pres.getContentText());
+  const page = (info.slides || [])[0].objectId;
+
+  // Abort if tokens already exist (avoid duplicating the scaffold)
+  const existing = Object.values(readBoxTexts_(FLYER_TEMPLATE_ID)).join(' ');
+  if (existing.indexOf('{{') !== -1) throw new Error('Template already has tokens — scaffold not re-applied.');
+
+  const requests = [];
+  let n = 0;
+  const mkId = () => 'flyer_seed_' + (++n);
+
+  function shape(type, x, y, w, h, fill) {
+    const id = mkId();
+    requests.push({ createShape: { objectId: id, shapeType: type, elementProperties: {
+      pageObjectId: page,
+      size: { width: { magnitude: w, unit: 'EMU' }, height: { magnitude: h, unit: 'EMU' } },
+      transform: { scaleX: 1, scaleY: 1, translateX: x, translateY: y, unit: 'EMU' },
+    } } });
+    if (fill) requests.push({ updateShapeProperties: { objectId: id,
+      shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: fill } } } },
+      fields: 'shapeBackgroundFill.solidFill.color' } });
+    return id;
+  }
+
+  function textBox(text, x, y, w, h, opts) {
+    const o  = opts || {};
+    const id = shape('TEXT_BOX', x, y, w, h, null);
+    requests.push({ insertText: { objectId: id, insertionIndex: 0, text: text } });
+    requests.push({ updateTextStyle: { objectId: id, textRange: { type: 'ALL' },
+      style: { bold: !!o.bold, italic: !!o.italic,
+               fontSize: { magnitude: o.size || 11, unit: 'PT' },
+               foregroundColor: { opaqueColor: { rgbColor: o.color || C_DARK } } },
+      fields: 'bold,italic,fontSize,foregroundColor' } });
+    requests.push({ updateParagraphStyle: { objectId: id, textRange: { type: 'ALL' },
+      style: { alignment: o.align || 'START' }, fields: 'alignment' } });
+    if (o.bullets) requests.push({ createParagraphBullets: { objectId: id,
+      textRange: { type: 'ALL' }, bulletPreset: 'BULLET_DISC_CIRCLE_SQUARE' } });
+    return id;
+  }
+
+  function placeholder(type, label, x, y, w, h) {
+    const id = shape(type, x, y, w, h, C_GREY);
+    requests.push({ insertText: { objectId: id, insertionIndex: 0, text: label } });
+    requests.push({ updateTextStyle: { objectId: id, textRange: { type: 'ALL' },
+      style: { fontSize: { magnitude: 10, unit: 'PT' },
+               foregroundColor: { opaqueColor: { rgbColor: { red: 0.55, green: 0.55, blue: 0.55 } } } },
+      fields: 'fontSize,foregroundColor' } });
+  }
+
+  // ── Sidebar (left third, full height) ──
+  shape('RECTANGLE', 0, 0, 2800000, A4_H, C_BLUE);
+  placeholder('ELLIPSE', 'HEADSHOT', 400000, 350000, 2000000, 2000000);
+  textBox('{{NAME}}',    100000, 2600000, 2600000, 480000, { size: 20, bold: true, color: C_WHITE, align: 'CENTER' });
+  textBox('{{COMPANY}}', 100000, 3120000, 2600000, 620000, { size: 12, color: C_WHITE, align: 'CENTER' });
+  textBox('{{HP}}',      100000, 3760000, 2600000, 360000, { size: 12, color: C_WHITE, align: 'CENTER' });
+  placeholder('RECTANGLE', 'COMPANY PHOTO 1', 250000, 4400000, 2300000, 2200000);
+  placeholder('RECTANGLE', 'COMPANY PHOTO 2', 250000, 6900000, 2300000, 2200000);
+
+  // ── Right column ──
+  const RX = 3100000, RW = 4200000;
+  placeholder('RECTANGLE', 'LOGO', RX, 300000, 1900000, 750000);
+  textBox('{{BRAND}}',   RX, 1250000, RW, 950000, { size: 28, bold: true, color: C_NAVY, align: 'CENTER' });
+  textBox('{{TAGLINE}}', RX, 2220000, RW, 400000, { size: 12, bold: true, italic: true, color: C_NAVY, align: 'CENTER' });
+  textBox('{{HEADING}}', RX, 2700000, RW, 450000, { size: 17, bold: true, color: C_TEAL, align: 'CENTER' });
+  textBox('{{ABOUT}}',   RX, 3200000, RW, 2300000, { size: 11, color: C_DARK });
+  textBox('WHY US',      RX, 5600000, RW, 430000, { size: 16, bold: true, color: C_TEAL, align: 'CENTER' });
+  textBox('{{WHY_US}}',  RX + 150000, 6080000, RW - 300000, 1650000, { size: 11, bold: true, color: C_DARK, bullets: true });
+  textBox('OUR SERVICES', RX, 7850000, 2500000, 430000, { size: 16, bold: true, color: C_TEAL });
+  textBox('{{SERVICES}}', RX + 150000, 8320000, 2400000, 1500000, { size: 12, color: C_DARK, bullets: true });
+  placeholder('RECTANGLE', 'QR CODE', 5850000, 8320000, 1450000, 1650000);
+
+  const resp = UrlFetchApp.fetch(
+    'https://slides.googleapis.com/v1/presentations/' + FLYER_TEMPLATE_ID + ':batchUpdate', {
+      method: 'post', contentType: 'application/json', headers: authHeader_(),
+      payload: JSON.stringify({ requests }), muteHttpExceptions: true,
+    });
+  if (resp.getResponseCode() !== 200) throw new Error('Seed failed: ' + resp.getContentText().slice(0, 400));
+  Logger.log('Template scaffold created — open the deck and restyle freely.');
+  return checkTemplate_();
+}
+
 // ── Utility ───────────────────────────────────────────────────────────────────
 function authHeader_() { return { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }; }
 

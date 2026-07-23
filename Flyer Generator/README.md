@@ -26,18 +26,20 @@ Set text boxes to **shrink text on overflow** so long content never breaks
 the layout.
 
 ## Setup (one-time)
-1. Create the template deck in Google Slides (single slide, page size set to
-   the flyer ratio, e.g. A4 portrait). Put the tokens above in their own text
-   boxes, styled exactly as the final flyer. Placeholder images go where the
-   headshot / photos / QR sit (purely visual — script ignores them).
-2. Create a Drive folder for outputs.
-3. Paste both IDs into `FLYER_TEMPLATE_ID` / `FLYER_FOLDER_ID` in
-   `Flyer Generator Appsscript.js`.
-4. New Apps Script project (separate from Weekly Check-In) → paste the file →
-   Deploy as Web App (Execute as: Me / Access: Anyone).
+1. In the (empty) template deck: **File → Page setup → Custom → 21 × 29.7 cm**
+   (A4 portrait). Do this BEFORE seeding — the scaffold coordinates assume A4.
+2. New Apps Script project (separate from Weekly Check-In) → paste
+   `Flyer Generator Appsscript.js` (IDs already wired in) → Project Settings →
+   show `appsscript.json` → paste the manifest from this folder → authorize.
+3. In the editor, **Run → `seedTemplate`** — builds the full flyer scaffold on
+   the template: sidebar, all 9 token boxes, static headings, grey placeholder
+   shapes for headshot / photos / logo / QR. Then open the deck and restyle
+   fonts/colours/positions freely (keep each token in its own box; set boxes
+   to "shrink text on overflow").
+4. Deploy → New deployment → Web App (Execute as: Me / Access: Anyone).
 5. Paste the `/exec` URL into `APPS_SCRIPT_URL` in `flyer.html`.
-6. Verify the template: open
-   `<exec-url>?action=checkTemplate&pin=<PIN>` — it lists found/missing tokens.
+6. Verify: `<exec-url>?action=checkTemplate&pin=<PIN>` — lists found/missing
+   tokens.
 
 ## Weekly use
 1. Open `flyer.html` → pick a member (✓ = existing flyer loads for editing;
