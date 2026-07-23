@@ -85,7 +85,7 @@ function doGet(e) {
                                             ? jsonOk_(resetAllPresent_())
                                             : jsonErr_('Invalid PIN');
   if (action === 'dumpSlides')           return (e.parameter.pin === ADMIN_PIN)
-                                            ? dumpSlides_(e.parameter.find || '', e.parameter.slide || '')
+                                            ? dumpSlides_(e.parameter.find || '', e.parameter.slide || '', e.parameter.raw || '')
                                             : jsonErr_('Invalid PIN');
   if (action === 'testCommittee')        return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_({ pairs: reflowGridTeam_(COMMITTEE, parseAbsent_(e.parameter.absent || '')) })
@@ -96,6 +96,12 @@ function doGet(e) {
   if (action === 'getRoles')             return jsonOk_({ roles: getRoles_() });
   if (action === 'renderCommittee')      return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(renderCommitteeText_())
+                                            : jsonErr_('Invalid PIN');
+  if (action === 'renderVisitorHost')    return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(renderVisitorHostText_())
+                                            : jsonErr_('Invalid PIN');
+  if (action === 'renderTeams')          return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(renderAllGridText_())
                                             : jsonErr_('Invalid PIN');
 
   const response = {
@@ -604,7 +610,7 @@ function getNextPresenters_() {
  *   ?action=dumpSlides&pin=####&find=Referral   → only slides whose text matches
  *   ?action=dumpSlides&pin=####&slide=42        → full detail for one slide (1-based)
  */
-function dumpSlides_(find, slideParam) {
+function dumpSlides_(find, slideParam, rawMode) {
   const fields = 'slides(objectId,pageElements(objectId,size,transform,' +
                  'shape(shapeType,text(textElements(textRun(content)))),image(contentUrl)))';
   const url  = 'https://slides.googleapis.com/v1/presentations/' + PRESENTATION_ID + '?fields=' + encodeURIComponent(fields);
@@ -624,14 +630,16 @@ function dumpSlides_(find, slideParam) {
     const elements = (s.pageElements || []).map(pe => {
       let text = '';
       if (pe.shape && pe.shape.text && pe.shape.text.textElements) {
-        text = pe.shape.text.textElements.map(te => (te.textRun ? te.textRun.content : '')).join('').replace(/\s+/g, ' ').trim();
+        text = pe.shape.text.textElements.map(te => (te.textRun ? te.textRun.content : '')).join('');
+        // raw mode preserves line breaks (shown as \n) so cell structure is visible.
+        text = rawMode ? text.replace(/\n/g, '\\n').replace(/[ \t]+/g, ' ').trim() : text.replace(/\s+/g, ' ').trim();
       }
       const t  = pe.transform || {};
       const sz = pe.size || {};
       return {
         id:   pe.objectId,
         kind: pe.image ? 'image' : (pe.shape ? (pe.shape.shapeType || 'shape') : 'other'),
-        text: text.slice(0, 90),
+        text: text.slice(0, rawMode ? 240 : 90),
         x:    Math.round(t.translateX || 0),
         y:    Math.round(t.translateY || 0),
         sx:   +Number(t.scaleX || 1).toFixed(4),
@@ -1204,38 +1212,72 @@ function saveRoles_(data) {
 // textSlots = the cell text-box IDs in the SAME order as the team's Roles rows.
 const COMMITTEE_TEXT_SLOTS = ['p10_i239', 'p10_i251', 'p10_i248', 'p10_i250', 'p10_i241'];
 
-function renderTeamText_(teamName, slideId, textSlots) {
+// A slot is either a box-id string (cell holds Name\nTrade) or
+// { box, role:true } (cell holds Role\nName\nTrade). Slots are listed in the
+// SAME order as the team's Roles rows. Defensive: a cell that can't be split
+// safely (too few lines) is SKIPPED and reported — never mangled.
+function renderTeamText_(teamName, slideId, slots) {
   const roles = getRoles_().filter(r => r.team.toLowerCase() === teamName.toLowerCase());
   const cur   = readDeckBoxText_();
+  const norm  = s => (typeof s === 'string') ? { box: s, role: false } : { box: s.box, role: !!s.role };
   const requests = [];
   let changed = 0;
+  const skipped = [];
 
-  textSlots.forEach((box, i) => {
+  const swap = (oldT, newT) => {
+    oldT = String(oldT || '').trim(); newT = String(newT || '').trim();
+    if (oldT && newT && oldT !== newT) {
+      requests.push({ replaceAllText: { containsText: { text: oldT, matchCase: true }, replaceText: newT, pageObjectIds: [slideId] } });
+      changed++;
+    }
+  };
+
+  slots.forEach((raw, i) => {
+    const slot = norm(raw);
     const role = roles[i];
-    if (!role) return; // fewer members than slots — Phase D (hide) handles this
-    const curText  = String(cur[box] || '').replace(/\n+$/, '');
-    const parts    = curText.split('\n');
-    const oldName  = (parts[0] || '').trim();
-    const oldTrade = parts.slice(1).join(' ').trim();
-    const newName  = role.member.trim();
-    const newTrade = role.trade.trim();
+    if (!role) return;                                          // fewer members than cells
+    const curText = String(cur[slot.box] || '').replace(/\n+$/, '');
+    const parts   = curText.split('\n').map(p => p.trim());
+    const need    = slot.role ? 3 : 2;                          // role cells need Role/Name/Trade
+    if (parts.length < need) { skipped.push(slot.box); return; } // unsafe to split — leave it
 
-    if (oldName && newName && oldName !== newName) {
-      requests.push({ replaceAllText: { containsText: { text: oldName, matchCase: true }, replaceText: newName, pageObjectIds: [slideId] } });
-      changed++;
-    }
-    if (oldTrade && newTrade && oldTrade !== newTrade) {
-      requests.push({ replaceAllText: { containsText: { text: oldTrade, matchCase: true }, replaceText: newTrade, pageObjectIds: [slideId] } });
-      changed++;
-    }
+    let oldRole = '', oldName = '', oldTrade = '';
+    if (slot.role) { oldRole = parts[0]; oldName = parts[1]; oldTrade = parts.slice(2).join(' '); }
+    else           { oldName = parts[0]; oldTrade = parts.slice(1).join(' '); }
+
+    if (slot.role) swap(oldRole, role.role);
+    swap(oldName,  role.member);
+    swap(oldTrade, role.trade);
   });
 
   if (requests.length) slidesBatchUpdate_(requests);
-  return { changed, team: teamName };
+  return { changed, skipped, team: teamName };
 }
 
 function renderCommitteeText_() {
   return renderTeamText_('Membership Committee', COMMITTEE.slideId, COMMITTEE_TEXT_SLOTS);
+}
+
+// Visitor Host grid (slide 13 / p21). 6 cells in Roles-row order; Kay Tan's
+// cell carries a "Visitor Orientation" role label (role:true).
+const VISITOR_HOST_SLOTS = [
+  'p21_i415',                              // Sandy Au
+  'g3da1b38dbc6_0_2',                      // Jia Zheng Lee  (slide: "Lee Jia Zheng")
+  'g3da1b38dbc6_0_9',                      // Ivan Ang
+  'g3da1b38dbc6_0_6',                      // Daniel Yen
+  { box: 'g3d3588e3aa5_0_17', role: true },// Kay Tan — Visitor Orientation
+  'g3da1b38dbc6_0_11',                     // Yu Xi Kuek  (slide: "Kuek Yu Xi")
+];
+function renderVisitorHostText_() {
+  return renderTeamText_('Visitor Host', 'p21', VISITOR_HOST_SLOTS);
+}
+
+// Render every wired grid team's text from the Roles sheet.
+function renderAllGridText_() {
+  return {
+    committee:    renderCommitteeText_(),
+    visitorHost:  renderVisitorHostText_(),
+  };
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────────

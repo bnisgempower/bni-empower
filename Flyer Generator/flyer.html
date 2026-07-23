@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#c0392b">
+  <title>BNI Empower — Flyer Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --gold:#c0392b; --gold-bright:#daa94d; --gold-dim:rgba(200,151,58,.12); --gold-border:rgba(200,151,58,.35);
+      --bg:#0d0d0d; --bg2:#141414; --surface:#1c1c1c; --surface2:#252525; --border:#2e2e2e;
+      --text:#f0ede8; --text-muted:#888; --text-dim:#4a4a4a; --success:#5cc976; --danger:#e05c5c;
+      --r-sm:8px; --r:14px; --r-lg:18px; --tr:200ms ease;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{-webkit-tap-highlight-color:transparent}
+    body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);
+      min-height:100dvh;display:flex;flex-direction:column;align-items:center;
+      padding-bottom:max(env(safe-area-inset-bottom),96px)}
+    .header{width:100%;background:var(--bg2);border-bottom:1px solid var(--border);
+      padding:16px 20px;display:flex;align-items:center;justify-content:center;gap:12px;
+      position:sticky;top:0;z-index:20}
+    .logo-mark{width:40px;height:40px;background:var(--gold);border-radius:10px;display:flex;
+      align-items:center;justify-content:center;font-weight:800;font-size:22px;color:#000;letter-spacing:-.5px}
+    .header-text h1{font-size:17px;font-weight:800;letter-spacing:-.2px}
+    .header-text p{font-size:12px;color:var(--text-muted)}
+    .container{width:100%;max-width:560px;padding:18px 14px 0;flex:1;display:flex;flex-direction:column;gap:16px}
+
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px;
+      display:flex;flex-direction:column;gap:12px}
+    .card-title{font-size:13px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--gold-bright)}
+    .fld{display:flex;flex-direction:column;gap:4px}
+    .fld label{font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;padding-left:2px}
+    .fld .hint{font-size:11px;color:var(--text-dim);padding-left:2px}
+    .inp{width:100%;font-family:inherit;font-size:14px;color:var(--text);background:var(--bg2);
+      border:1px solid var(--border);border-radius:var(--r-sm);padding:9px 10px}
+    .inp:focus{outline:none;border-color:var(--gold-border)}
+    textarea.inp{resize:vertical;min-height:74px;line-height:1.45}
+    select.inp{-webkit-appearance:none;appearance:none;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat:no-repeat;background-position:right 8px center;background-size:16px;padding-right:26px}
+
+    .links{display:flex;flex-wrap:wrap;gap:8px}
+    .links a{flex:1;min-width:120px;text-align:center;text-decoration:none;font-size:13px;font-weight:700;
+      color:var(--gold-bright);background:var(--gold-dim);border:1px solid var(--gold-border);
+      border-radius:var(--r-sm);padding:10px 8px}
+
+    .savebar{position:fixed;left:0;right:0;bottom:0;background:var(--bg2);border-top:1px solid var(--border);
+      padding:12px 14px max(env(safe-area-inset-bottom),12px);display:flex;gap:10px;align-items:center;z-index:30}
+    .savebar .pin{width:110px;font-family:inherit;font-size:16px;color:var(--text);background:var(--surface);
+      border:1px solid var(--border);border-radius:var(--r);padding:12px}
+    .savebar .btn{flex:1;font-family:inherit;font-size:16px;font-weight:800;color:#000;background:var(--gold);
+      border:none;border-radius:var(--r);padding:13px;cursor:pointer}
+    .savebar .btn:disabled{opacity:.5}
+    .savebar .btn:active{transform:scale(.99)}
+
+    .msg{font-size:13px;padding:9px 12px;border-radius:var(--r-sm);line-height:1.4;display:none}
+    .msg.show{display:block}
+    .msg.err{background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.4);color:#f0a0a0}
+    .msg.ok{background:rgba(92,201,118,.12);border:1px solid rgba(92,201,118,.4);color:#a7e0b8}
+    .loading{color:var(--text-muted);text-align:center;padding:40px;font-size:14px}
+    footer{text-align:center;font-size:11px;color:var(--text-dim);padding:20px 16px 8px;line-height:1.5}
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo-mark">B</div>
+    <div class="header-text"><h1>Flyer Generator</h1><p>Member one-pagers</p></div>
+  </header>
+
+  <main class="container">
+    <div class="loading" id="loading">Loading members…</div>
+
+    <section class="card" id="pickCard" style="display:none">
+      <div class="card-title">Member</div>
+      <div class="fld">
+        <label>Select member</label>
+        <select class="inp" id="member"><option value="">— select —</option></select>
+        <div class="hint">✓ = has a saved flyer (fields load for editing). Others prefill from Active_Members.</div>
+      </div>
+    </section>
+
+    <section class="card" id="formCard" style="display:none">
+      <div class="card-title">Flyer Content</div>
+      <div class="fld"><label>Name (as shown on flyer)</label><input class="inp" id="f-displayName" placeholder="RAYMOND YEOH"></div>
+      <div class="fld"><label>Company</label><input class="inp" id="f-company" placeholder="XOOL INDUSTRIES PTE LTD"></div>
+      <div class="fld"><label>HP</label><input class="inp" id="f-hp" placeholder="HP: 9685 1011"></div>
+      <div class="fld"><label>Brand / Business headline</label><input class="inp" id="f-brand" placeholder="Xool Aircon Experts"></div>
+      <div class="fld"><label>Tagline</label><input class="inp" id="f-tagline" placeholder="No. 1 Aircon Service Provider in Singapore"></div>
+      <div class="fld"><label>Section heading</label><input class="inp" id="f-heading" placeholder="SERVICE YOU CAN TRUST"></div>
+      <div class="fld"><label>About</label><textarea class="inp" id="f-about" rows="5" placeholder="Paragraph 1…&#10;&#10;Paragraph 2… (blank line between paragraphs)"></textarea></div>
+      <div class="fld"><label>Why Us — one bullet per line</label><textarea class="inp" id="f-whyUs" rows="4" placeholder="24/7 Online Booking with Instant Confirmation&#10;Hassle-free Credit Card Payment"></textarea></div>
+      <div class="fld"><label>Our Services — one bullet per line</label><textarea class="inp" id="f-services" rows="3" placeholder="Sales &amp; Installation&#10;Service &amp; Maintenance"></textarea></div>
+      <div class="msg err" id="err"></div>
+      <div class="msg ok" id="ok"></div>
+      <div class="links" id="links" style="display:none"></div>
+    </section>
+
+    <footer>Photos, logo and QR are placed once in the member’s deck (link appears after first generate) — regenerating never touches them.</footer>
+  </main>
+
+  <div class="savebar" id="savebar" style="display:none">
+    <input class="pin" id="pin" type="password" inputmode="numeric" placeholder="PIN">
+    <button class="btn" id="save">Save &amp; Generate</button>
+  </div>
+
+  <script>
+  const APPS_SCRIPT_URL = 'PASTE_FLYER_WEBAPP_URL_HERE';
+  const FIELD_KEYS = ['displayName','company','hp','brand','tagline','heading','about','whyUs','services'];
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+  let MEMBERS = [];
+
+  function showMsg(id, m){ const e=$(id); e.textContent=m; e.classList.add('show'); }
+  function clearMsgs(){ ['err','ok'].forEach(id => $(id).classList.remove('show')); $('links').style.display='none'; }
+
+  (async function init(){
+    try{
+      const res = await fetch(APPS_SCRIPT_URL+'?action=getMembers', {cache:'no-store'}).then(r=>r.json());
+      MEMBERS = res.members || [];
+      const sel = $('member');
+      MEMBERS.forEach(m => {
+        const o = document.createElement('option');
+        o.value = m.name;
+        o.textContent = (m.hasFlyer ? '✓ ' : '') + m.name;
+        sel.appendChild(o);
+      });
+      $('loading').style.display='none';
+      $('pickCard').style.display='';
+    }catch(e){
+      $('loading').textContent = 'Couldn’t load members. Pull to refresh.';
+    }
+  })();
+
+  $('member').addEventListener('change', async ()=>{
+    clearMsgs();
+    const name = $('member').value;
+    if(!name){ $('formCard').style.display='none'; $('savebar').style.display='none'; return; }
+    const m = MEMBERS.find(x => x.name === name);
+    $('formCard').style.display='';
+    $('savebar').style.display='';
+
+    if (m && m.hasFlyer){
+      try{
+        const res = await fetch(APPS_SCRIPT_URL+'?action=getFlyer&member='+encodeURIComponent(name), {cache:'no-store'}).then(r=>r.json());
+        const f = res.flyer || {};
+        FIELD_KEYS.forEach(k => { $('f-'+k).value = f[k] || ''; });
+        if (f.deckUrl) renderLinks(f);
+        return;
+      }catch(e){ /* fall through to prefill */ }
+    }
+    // New flyer — prefill from Active_Members
+    const p = (m && m.prefill) || {};
+    $('f-displayName').value = name.toUpperCase();
+    $('f-company').value  = p.company || '';
+    $('f-hp').value       = p.hp || '';
+    $('f-brand').value    = p.brand || '';
+    $('f-tagline').value  = p.tagline || '';
+    $('f-heading').value  = '';
+    $('f-about').value    = p.about || '';
+    $('f-whyUs').value    = '';
+    $('f-services').value = p.services || '';
+  });
+
+  function renderLinks(r){
+    const L = $('links');
+    L.innerHTML =
+      (r.pngUrl  ? '<a href="'+esc(r.pngUrl)+'" target="_blank">🖼️ PNG</a>' : '') +
+      (r.pdfUrl  ? '<a href="'+esc(r.pdfUrl)+'" target="_blank">📄 PDF</a>' : '') +
+      (r.deckUrl ? '<a href="'+esc(r.deckUrl)+'" target="_blank">🎞️ Edit deck</a>' : '');
+    L.style.display='';
+  }
+
+  $('save').addEventListener('click', async ()=>{
+    clearMsgs();
+    const pin = $('pin').value.trim();
+    if(!pin){ showMsg('err','Enter the PIN to generate.'); return; }
+    const payload = { formType:'saveFlyer', pin };
+    FIELD_KEYS.forEach(k => { payload[k] = $('f-'+k).value; });
+    payload.memberName = $('member').value; // sheet row key = roster name
+
+    const btn = $('save'); btn.disabled=true; btn.textContent='Generating…';
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, {method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload)});
+      const json = await res.json();
+      if(json.status==='error') throw new Error(json.message||'Generate failed');
+      showMsg('ok','✓ Flyer generated for '+json.member+'.');
+      renderLinks(json);
+      const m = MEMBERS.find(x => x.name === payload.memberName);
+      if (m) m.hasFlyer = true;
+    }catch(err){
+      showMsg('err', err.message || 'Network error — please try again.');
+    }
+    btn.disabled=false; btn.textContent='Save & Generate';
+  });
+  </script>
+</body>
+</html>
