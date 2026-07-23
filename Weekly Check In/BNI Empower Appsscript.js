@@ -1444,6 +1444,19 @@ function suppRoster_() {
   return { roles, photo, missing, allFiles: chk.allFiles };
 }
 
+// { objectId: {w,h} } native sizes of every element on a page.
+function readSlideElementSizes_(slideId) {
+  const url  = 'https://slides.googleapis.com/v1/presentations/' + PRESENTATION_ID +
+               '/pages/' + slideId + '?fields=' + encodeURIComponent('pageElements(objectId,size)');
+  const resp = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+  const map = {};
+  if (resp.getResponseCode() !== 200) return map;
+  (JSON.parse(resp.getContentText()).pageElements || []).forEach(pe => {
+    if (pe.size && pe.size.width && pe.size.height) map[pe.objectId] = { w: pe.size.width.magnitude, h: pe.size.height.magnitude };
+  });
+  return map;
+}
+
 // STEP 1 — place the 9 photos in the grid (uniform, cropped). Text is separate.
 function buildSupportPhotos_() {
   const G = SUPPORT_GRID;
@@ -1453,12 +1466,13 @@ function buildSupportPhotos_() {
 
   const slots = suppSlots_();
 
-  // Remove the test image + the 5 old images (tolerate any already gone).
-  [{ deleteObject: { objectId: 'testphoto1' } }]
-    .concat(G.oldImages.map(id => ({ deleteObject: { objectId: id } })))
-    .forEach(req => { try { slidesBatchUpdate_([req]); } catch (e) {} });
+  // Clear the old 5 images + test image + any prior grid attempt.
+  const dels = [{ deleteObject: { objectId: 'testphoto1' } }]
+    .concat(G.oldImages.map(id => ({ deleteObject: { objectId: id } })));
+  for (let i = 0; i < 9; i++) dels.push({ deleteObject: { objectId: 'suppimg' + i } });
+  dels.forEach(req => { try { slidesBatchUpdate_([req]); } catch (e) {} });
 
-  // Create 9 fresh images at the slot positions.
+  // Create the 9 images (positioned; scale gets corrected below once we know native size).
   const createReqs = roles.map((r, i) => {
     const s = slots[i], band = G.row[s.r];
     return { createImage: {
@@ -1466,26 +1480,28 @@ function buildSupportPhotos_() {
       url: shareAndThumbUrl_(photo[suppKey_(r.member)]),
       elementProperties: {
         pageObjectId: G.slideId,
-        size:      { width: { magnitude: G.photoW, unit: 'EMU' }, height: { magnitude: G.photoH, unit: 'EMU' } },
         transform: { scaleX: 1, scaleY: 1, translateX: Math.round(s.cx - G.photoW / 2), translateY: band.photoY, unit: 'EMU' },
       },
     } };
   });
   const c1 = slidesBatchUpdate_(createReqs);
 
-  // Crop-fill each to the uniform box (CENTER_CROP) + re-assert exact size/position.
-  const cropReqs = [];
+  // Read each image's native size, then scale it to fill the uniform box and CENTER_CROP.
+  const sizes = readSlideElementSizes_(G.slideId);
+  const reqs  = [];
   roles.forEach((r, i) => {
-    const s = slots[i], band = G.row[s.r];
-    cropReqs.push({ replaceImage: { imageObjectId: 'suppimg' + i,
-      url: shareAndThumbUrl_(photo[suppKey_(r.member)]), imageReplaceMethod: 'CENTER_CROP' } });
-    cropReqs.push({ updatePageElementTransform: { objectId: 'suppimg' + i,
-      transform: { scaleX: 1, scaleY: 1, translateX: Math.round(s.cx - G.photoW / 2), translateY: band.photoY, unit: 'EMU' },
+    const s = slots[i], band = G.row[s.r], id = 'suppimg' + i;
+    const nz = sizes[id] || { w: G.photoW, h: G.photoH };
+    reqs.push({ updatePageElementTransform: { objectId: id,
+      transform: { scaleX: G.photoW / nz.w, scaleY: G.photoH / nz.h,
+                   translateX: Math.round(s.cx - G.photoW / 2), translateY: band.photoY, unit: 'EMU' },
       applyMode: 'ABSOLUTE' } });
+    reqs.push({ replaceImage: { imageObjectId: id,
+      url: shareAndThumbUrl_(photo[suppKey_(r.member)]), imageReplaceMethod: 'CENTER_CROP' } });
   });
-  const c2 = slidesBatchUpdate_(cropReqs);
+  const c2 = slidesBatchUpdate_(reqs);
 
-  return { ok: true, placed: roles.length, order: roles.map(r => r.member), createCode: c1, cropCode: c2 };
+  return { ok: true, placed: roles.length, order: roles.map(r => r.member), createCode: c1, fixCode: c2, sizesRead: Object.keys(sizes).length };
 }
 
 // Remove any grid images (undo STEP 1) to retry cleanly.
