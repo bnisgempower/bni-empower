@@ -124,6 +124,12 @@ function doGet(e) {
   if (action === 'saveDeliaPhoto')       return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(saveDeliaPhoto_())
                                             : jsonErr_('Invalid PIN');
+  if (action === 'buildSupportText')     return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(buildSupportText_())
+                                            : jsonErr_('Invalid PIN');
+  if (action === 'removeSupportText')    return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(removeSupportText_())
+                                            : jsonErr_('Invalid PIN');
 
   const response = {
     status:    'ok',
