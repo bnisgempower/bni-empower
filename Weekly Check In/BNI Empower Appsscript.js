@@ -266,6 +266,11 @@ function doPost(e) {
       return jsonOk_({ written: true, totals, display: committeeDisplay_(totals) });
     }
 
+    if (data.formType === 'saveRoles') {
+      if (data.pin !== ADMIN_PIN) return jsonErr_('Invalid PIN');
+      return jsonOk_(saveRoles_(data));
+    }
+
     writeSubmission_(data);
 
     if (data.attending === 'no' && !data.subName) {
@@ -1171,6 +1176,25 @@ function setupRolesSheet() {
               : 'Roles sheet already has data — left untouched.'));
   } catch (_) {}
   return { seeded, total: getRoles_().length };
+}
+
+// Overwrite the Roles sheet from the editor UI (validated PIN in doPost).
+function saveRoles_(data) {
+  const ss    = SpreadsheetApp.openById(SHEET_ID);
+  let sheet   = ss.getSheetByName(SN.ROLES);
+  if (!sheet) { setupRolesSheet(); sheet = ss.getSheetByName(SN.ROLES); }
+
+  const roles = Array.isArray(data.roles) ? data.roles : [];
+  const clean = v => String(v == null ? '' : v).trim();
+  const rows  = roles
+    .map(r => [clean(r.team), clean(r.role), clean(r.member), clean(r.trade)])
+    .filter(r => r[2]); // keep rows that have a member
+
+  const last = sheet.getLastRow();
+  if (last > 1) sheet.getRange(2, 1, last - 1, 4).clearContent();
+  if (rows.length) sheet.getRange(2, 1, rows.length, 4).setValues(rows);
+
+  return { saved: rows.length };
 }
 
 // ── Phase B: render grid TEXT from the Roles sheet ────────────────────────────

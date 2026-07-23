@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#c0392b">
+  <title>BNI Empower — Manage Roles</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --gold:#c0392b; --gold-bright:#daa94d; --gold-dim:rgba(200,151,58,.12); --gold-border:rgba(200,151,58,.35);
+      --bg:#0d0d0d; --bg2:#141414; --surface:#1c1c1c; --surface2:#252525; --border:#2e2e2e;
+      --text:#f0ede8; --text-muted:#888; --text-dim:#4a4a4a; --success:#5cc976; --danger:#e05c5c;
+      --r-sm:8px; --r:14px; --r-lg:18px; --tr:200ms ease;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{-webkit-tap-highlight-color:transparent}
+    body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);
+      min-height:100dvh;display:flex;flex-direction:column;align-items:center;
+      padding-bottom:max(env(safe-area-inset-bottom),96px)}
+    .header{width:100%;background:var(--bg2);border-bottom:1px solid var(--border);
+      padding:16px 20px;display:flex;align-items:center;justify-content:center;gap:12px;
+      position:sticky;top:0;z-index:20}
+    .logo-mark{width:40px;height:40px;background:var(--gold);border-radius:10px;display:flex;
+      align-items:center;justify-content:center;font-weight:800;font-size:22px;color:#000;letter-spacing:-.5px}
+    .header-text h1{font-size:17px;font-weight:800;letter-spacing:-.2px}
+    .header-text p{font-size:12px;color:var(--text-muted)}
+    .container{width:100%;max-width:560px;padding:18px 14px 0;flex:1;display:flex;flex-direction:column;gap:18px}
+
+    .team{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+    .team-head{padding:12px 16px;background:var(--bg2);border-bottom:1px solid var(--border);
+      font-size:13px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--gold-bright)}
+    .rows{padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+    .role-row{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px;
+      display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
+    .role-row .full{grid-column:1 / -1}
+    .fld{display:flex;flex-direction:column;gap:4px}
+    .fld label{font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;padding-left:2px}
+    .inp{width:100%;font-family:inherit;font-size:14px;color:var(--text);background:var(--surface);
+      border:1px solid var(--border);border-radius:var(--r-sm);padding:9px 10px}
+    .inp:focus{outline:none;border-color:var(--gold-border)}
+    select.inp{-webkit-appearance:none;appearance:none;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat:no-repeat;background-position:right 8px center;background-size:16px;padding-right:26px}
+    .del{align-self:center;width:38px;height:38px;flex-shrink:0;border:1px solid var(--border);background:var(--surface);
+      border-radius:var(--r-sm);color:var(--danger);font-size:18px;cursor:pointer;line-height:1}
+    .del:active{transform:scale(.95)}
+    .add{margin:2px 4px 10px;background:none;border:1px dashed var(--gold-border);color:var(--gold-bright);
+      font-family:inherit;font-size:13px;font-weight:700;padding:9px;border-radius:var(--r-sm);cursor:pointer;width:calc(100% - 24px)}
+    .add:active{transform:scale(.99)}
+
+    .savebar{position:fixed;left:0;right:0;bottom:0;background:var(--bg2);border-top:1px solid var(--border);
+      padding:12px 14px max(env(safe-area-inset-bottom),12px);display:flex;gap:10px;align-items:center;z-index:30}
+    .savebar .pin{width:110px;font-family:inherit;font-size:16px;color:var(--text);background:var(--surface);
+      border:1px solid var(--border);border-radius:var(--r);padding:12px}
+    .savebar .btn{flex:1;font-family:inherit;font-size:16px;font-weight:800;color:#000;background:var(--gold);
+      border:none;border-radius:var(--r);padding:13px;cursor:pointer}
+    .savebar .btn:disabled{opacity:.5}
+    .savebar .btn:active{transform:scale(.99)}
+
+    .msg{width:100%;max-width:560px;font-size:13px;padding:9px 12px;border-radius:var(--r-sm);line-height:1.4;display:none;margin:0 14px}
+    .msg.show{display:block}
+    .msg.err{background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.4);color:#f0a0a0}
+    .msg.ok{background:rgba(92,201,118,.12);border:1px solid rgba(92,201,118,.4);color:#a7e0b8}
+    .loading{color:var(--text-muted);text-align:center;padding:40px;font-size:14px}
+    footer{text-align:center;font-size:11px;color:var(--text-dim);padding:20px 16px 8px;line-height:1.5}
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo-mark">B</div>
+    <div class="header-text"><h1>Manage Roles</h1><p>Teams &amp; members</p></div>
+  </header>
+
+  <main class="container" id="main">
+    <div class="loading" id="loading">Loading roles…</div>
+    <div id="teams"></div>
+    <div class="msg err" id="err"></div>
+    <footer>Edits here update the team slides automatically.<br>Add a member to more than one team to double-hat (e.g. Mentor).</footer>
+  </main>
+
+  <div class="savebar" id="savebar" style="display:none">
+    <input class="pin" id="pin" type="password" inputmode="numeric" placeholder="MC PIN">
+    <button class="btn" id="save">Save all changes</button>
+  </div>
+
+  <script>
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxYCpexo7cuQwYMpBwLtVn48hEQAoz1PQw17INXwZpXz-nh7foLB4-8Dhct2a7yNE8lMg/exec';
+  const TEAMS = ['Leadership Team', 'Membership Committee', 'Visitor Host', 'Support Leadership'];
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+  let ROSTER = [];
+
+  function showErr(m){ const e=$('err'); e.textContent=m; e.className='msg err show'; }
+  function clearErr(){ $('err').className='msg err'; }
+
+  // Build one editable row
+  function rowHtml(role){
+    const opts = ['<option value="">— select member —</option>']
+      .concat(ROSTER.map(n => `<option${n===role.member?' selected':''}>${esc(n)}</option>`));
+    // if the saved member isn't in the roster, keep it as an option
+    if (role.member && !ROSTER.includes(role.member)) opts.splice(1,0,`<option selected>${esc(role.member)}</option>`);
+    return `<div class="role-row">
+      <div class="fld full"><label>Member</label><select class="inp r-member">${opts.join('')}</select></div>
+      <div class="fld"><label>Role</label><input class="inp r-role" value="${esc(role.role)}" placeholder="e.g. Mentor"></div>
+      <div class="fld"><label>Trade</label><input class="inp r-trade" value="${esc(role.trade)}" placeholder="e.g. Life Planner"></div>
+      <button class="del" title="Remove" onclick="this.closest('.role-row').remove()">✕</button>
+    </div>`;
+  }
+
+  function render(roles){
+    const wrap = $('teams');
+    wrap.innerHTML = '';
+    TEAMS.forEach(team => {
+      const mine = roles.filter(r => r.team === team);
+      const sec = document.createElement('section');
+      sec.className = 'team';
+      sec.dataset.team = team;
+      sec.innerHTML =
+        `<div class="team-head">${esc(team)}</div>` +
+        `<div class="rows">${mine.map(rowHtml).join('')}</div>` +
+        `<button class="add" onclick="addRow(this)">+ Add member</button>`;
+      wrap.appendChild(sec);
+    });
+    $('loading').style.display = 'none';
+    $('savebar').style.display = 'flex';
+  }
+
+  window.addRow = function(btn){
+    const rows = btn.previousElementSibling; // .rows
+    const div = document.createElement('div');
+    div.innerHTML = rowHtml({ role:'', member:'', trade:'' });
+    rows.appendChild(div.firstElementChild);
+  };
+
+  function collect(){
+    const out = [];
+    document.querySelectorAll('.team').forEach(sec => {
+      const team = sec.dataset.team;
+      sec.querySelectorAll('.role-row').forEach(row => {
+        const member = row.querySelector('.r-member').value.trim();
+        if (!member) return;
+        out.push({ team, role: row.querySelector('.r-role').value.trim(),
+                   member, trade: row.querySelector('.r-trade').value.trim() });
+      });
+    });
+    return out;
+  }
+
+  // Load
+  (async function init(){
+    try{
+      const [rolesRes, rosterRes] = await Promise.all([
+        fetch(APPS_SCRIPT_URL+'?action=getRoles', {cache:'no-store'}).then(r=>r.json()),
+        fetch(APPS_SCRIPT_URL+'?action=getRoster', {cache:'no-store'}).then(r=>r.json()),
+      ]);
+      ROSTER = rosterRes.members || [];
+      render(rolesRes.roles || []);
+    }catch(e){
+      $('loading').textContent = 'Couldn’t load roles. Pull to refresh.';
+    }
+  })();
+
+  // Save
+  $('save').addEventListener('click', async ()=>{
+    clearErr();
+    const pin = $('pin').value.trim();
+    if(!pin){ showErr('Enter the MC PIN to save.'); return; }
+    const roles = collect();
+    const btn = $('save'); btn.disabled=true; btn.textContent='Saving…';
+    const payload = { formType:'saveRoles', pin, roles };
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, {method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload)});
+      const json = await res.json();
+      if(json.status==='error'){ throw new Error(json.message||'Save failed'); }
+      done(json.saved);
+    }catch(err){
+      // Fallback: fire-and-forget then re-read
+      try{
+        await fetch(APPS_SCRIPT_URL, {method:'POST',mode:'no-cors',
+          headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload)});
+        await new Promise(r=>setTimeout(r,1500));
+        const check = await (await fetch(APPS_SCRIPT_URL+'?action=getRoles',{cache:'no-store'})).json();
+        if((check.roles||[]).length){ done(roles.length); }
+        else { btn.disabled=false; btn.textContent='Save all changes'; showErr('Save didn’t go through — check the MC PIN.'); }
+      }catch(e2){ btn.disabled=false; btn.textContent='Save all changes'; showErr('Network error — please try again.'); }
+    }
+  });
+
+  function done(n){
+    const e=$('err'); e.textContent='✓ Saved '+n+' role'+(n===1?'':'s')+'. The team slides will reflect this on the next update.';
+    e.className='msg ok show';
+    const btn=$('save'); btn.disabled=false; btn.textContent='Save all changes';
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  </script>
+</body>
+</html>
