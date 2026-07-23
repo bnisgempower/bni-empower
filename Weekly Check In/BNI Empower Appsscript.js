@@ -80,6 +80,9 @@ function doGet(e) {
   if (action === 'getRoster')            return jsonOk_({ members: getRoster_() });
   if (action === 'getNextPresenters')    return getNextPresenters_();
   if (action === 'getCommitteeTotals')   return getCommitteeTotalsAction_();
+  if (action === 'resetNextPresenters')  return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(applyNextPresenterChain_(NEXT_PRES_ORDER))
+                                            : jsonErr_('Invalid PIN');
   if (action === 'dumpSlides')           return (e.parameter.pin === ADMIN_PIN)
                                             ? dumpSlides_(e.parameter.find || '', e.parameter.slide || '')
                                             : jsonErr_('Invalid PIN');
@@ -793,6 +796,130 @@ function updateStatSlideNumbers_(next) {
   }
 }
 
+// ── Weekly "Next Presenter" chain (slides 62–91) ──────────────────────────────
+// Ordered weekly presenters + the single on-slide "Next Presenter" box each one
+// carries. Format: "Next Presenter: {next} ⇒ {the one after}". The last presenter
+// has no box; the second-to-last shows only the final name.
+const NEXT_PRES_ORDER = [
+  { name: 'Ariel Chong',       box: 'g3d498035fa2_1_62'  },
+  { name: 'Arun Prasad',       box: 'g3f56d718e25_0_31'  },
+  { name: 'Ben Wong',          box: 'g3d037e0c29a_0_266' },
+  { name: 'Ben Tee',           box: 'g3f56d718e25_0_32'  },
+  { name: 'Benjamin Ng',       box: 'g3d037e0c29a_0_268' },
+  { name: 'Daniel Yen',        box: 'g3d037e0c29a_0_269' },
+  { name: 'Deborah Chueh',     box: 'g3ec253ce018_0_13'  },
+  { name: 'Delia Tan',         box: 'g3f56d718e25_0_30'  },
+  { name: 'Ismail Khamis',     box: 'g3e31e8fdc1f_1_0'   },
+  { name: 'Ivan Ang',          box: 'g3d037e0c29a_0_273' },
+  { name: 'Jaron Chan',        box: 'g3efe084945a_1_1'   },
+  { name: 'Jay Tan',           box: 'g3f22d44700a_3_1'   },
+  { name: 'Lee Jia Zheng',     box: 'g3f7ba902fea_0_10'  },
+  { name: 'Zhang Junxian',     box: 'g3dcdba80422_1_9'   },
+  { name: 'Joanne Sooi',       box: 'g3d037e0c29a_0_277' },
+  { name: 'Jonathan Tan',      box: 'g3f7b7626906_0_5'   },
+  { name: 'Kay Tan',           box: 'g3d037e0c29a_0_278' },
+  { name: 'Kevin Phua',        box: 'g3d037e0c29a_0_279' },
+  { name: 'Lawrence Ku',       box: 'g3d037e0c29a_0_280' },
+  { name: 'Lee E Mae',         box: 'g3e6b5710eea_0_5'   },
+  { name: 'Mark Duma',         box: 'g3d037e0c29a_0_281' },
+  { name: 'Pamela Lin',        box: 'g3d037e0c29a_0_282' },
+  { name: 'Rajiv',             box: 'g3dcdba80422_1_20'  },
+  { name: 'Sandy Au',          box: 'g3da1b38dbc6_0_39'  },
+  { name: 'Zhao Shu Hui',      box: 'g3d037e0c29a_0_286' },
+  { name: 'Kuek Yu Xi',        box: 'g3d037e0c29a_0_288' },
+  { name: 'Zefirelli Noordin', box: 'g3da1b38dbc6_0_41'  },
+  { name: 'Rachel Teo',        box: 'g3da1b38dbc6_0_42'  },
+  { name: 'Pang Wee Khai',     box: 'g3d037e0c29a_0_287' },
+  { name: 'Iskons',            box: null                 }, // last — no box
+];
+// Off-screen leftover boxes from manual week-to-week editing (to remove).
+const NEXT_PRES_ORPHANS = ['g6cba5c9273fffe28_7', 'g3ea5c59300a_0_15', 'g3f56d718e25_0_29'];
+
+const NP_ARROW = '⇒'; // ⇒
+
+function nextPresenterText_(order, i) {
+  const a = order[i + 1] ? order[i + 1].name : '';
+  const b = order[i + 2] ? order[i + 2].name : '';
+  if (a && b) return 'Next Presenter: ' + a + ' ' + NP_ARROW + ' ' + b;
+  if (a)      return 'Next Presenter: ' + a;
+  return '';
+}
+
+// Compare loosely so a differing arrow glyph / trailing newline doesn't force a rewrite.
+function npNorm_(s) {
+  return String(s || '')
+    .replace(/[→⇒⟹➔⮕>]+/g, '@')
+    .replace(/\s+/g, ' ').trim();
+}
+
+// { objectId: text } for every shape text box in the deck (one API call).
+function readDeckBoxText_() {
+  const url  = 'https://slides.googleapis.com/v1/presentations/' + PRESENTATION_ID +
+               '?fields=' + encodeURIComponent('slides(pageElements(objectId,shape(text(textElements(textRun(content))))))');
+  const resp = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+  const map = {};
+  if (resp.getResponseCode() !== 200) { logError_('readDeckBoxText_', new Error(resp.getContentText().slice(0, 200))); return map; }
+  (JSON.parse(resp.getContentText()).slides || []).forEach(s => {
+    (s.pageElements || []).forEach(pe => {
+      if (pe.shape && pe.shape.text && pe.shape.text.textElements) {
+        map[pe.objectId] = pe.shape.text.textElements.map(te => (te.textRun ? te.textRun.content : '')).join('');
+      }
+    });
+  });
+  return map;
+}
+
+function slidesBatchUpdate_(requests) {
+  const url  = 'https://slides.googleapis.com/v1/presentations/' + PRESENTATION_ID + ':batchUpdate';
+  const resp = UrlFetchApp.fetch(url, {
+    method: 'post', contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    payload: JSON.stringify({ requests }), muteHttpExceptions: true,
+  });
+  if (resp.getResponseCode() !== 200) logError_('slidesBatchUpdate_', new Error(resp.getContentText().slice(0, 400)));
+  return resp.getResponseCode();
+}
+
+// Writes the Next Presenter chain for the given order. Only rewrites boxes whose
+// text differs (styling preserved via insert-then-delete) and removes orphans.
+function applyNextPresenterChain_(order) {
+  const cur = readDeckBoxText_();
+  const requests = [];
+  let changed = 0, deleted = 0;
+
+  NEXT_PRES_ORPHANS.forEach(id => {
+    if (cur[id] !== undefined) { requests.push({ deleteObject: { objectId: id } }); deleted++; }
+  });
+
+  order.forEach((m, i) => {
+    if (!m.box) return;
+    const target  = nextPresenterText_(order, i);
+    if (!target) return;
+    const old     = String(cur[m.box] || '');
+    const oldCore = old.replace(/\n+$/, '');            // keep the box's trailing newline
+    if (npNorm_(oldCore) === npNorm_(target)) return;   // already correct
+    requests.push({ insertText: { objectId: m.box, insertionIndex: 0, text: target } });
+    if (oldCore.length) {
+      requests.push({ deleteText: { objectId: m.box, textRange: {
+        type: 'FIXED_RANGE', startIndex: target.length, endIndex: target.length + oldCore.length,
+      } } });
+    }
+    changed++;
+  });
+
+  if (requests.length) slidesBatchUpdate_(requests);
+  return { changed, deleted };
+}
+
+function resetNextPresentersAllPresent() {
+  const r = applyNextPresenterChain_(NEXT_PRES_ORDER);
+  try {
+    SpreadsheetApp.getUi().alert('✅ Next Presenter reset (all present)\n\n' +
+      'Boxes corrected: ' + r.changed + '\nOff-screen leftovers removed: ' + r.deleted);
+  } catch (_) {}
+  return r;
+}
+
 // ── Utility ───────────────────────────────────────────────────────────────────
 function jsonOk_(payload) {
   return ContentService
@@ -832,6 +959,7 @@ function onOpen() {
     .addItem('🎞️  Setup Slide Map Sheet',                   'setupSlideMapSheet')
     .addItem('🖼️  Update Slides from Attendance',            'updateSlidesFromAttendance')
     .addItem('↩️  Restore All Slides',                       'restoreAllSlides')
+    .addItem('🔁 Reset Next Presenters (all present)',      'resetNextPresentersAllPresent')
     .addSeparator()
     .addItem('🗓️  Setup Roster Sheet',                      'setupRosterSheet')
     .addItem('⬆️  Push Roster to Sheets',                   'pushRosterToSheets')
