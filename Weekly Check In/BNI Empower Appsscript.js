@@ -38,6 +38,7 @@ const SN = {
   SLIDE_MAP:         'Slide_Map',      // Support Team box positions (editable slide→box map)
   INTRO_SLIDES:      'Intro_Slides',   // 30-sec intro slide objectIds per member
   COMMITTEE_REPORT:  'Committee_Report', // VP weekly numbers + running totals
+  ROLES:             'Roles',          // President-managed: Team | Role | Member | Trade
 };
 
 // ROSTER is read live from Active_Members cols C+D (First Name + Surname)
@@ -89,6 +90,10 @@ function doGet(e) {
   if (action === 'testCommittee')        return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_({ pairs: reflowGridTeam_(COMMITTEE, parseAbsent_(e.parameter.absent || '')) })
                                             : jsonErr_('Invalid PIN');
+  if (action === 'setupRoles')           return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(setupRolesSheet())
+                                            : jsonErr_('Invalid PIN');
+  if (action === 'getRoles')             return jsonOk_({ roles: getRoles_() });
 
   const response = {
     status:    'ok',
@@ -1071,6 +1076,100 @@ function parseAbsent_(s) {
   return new Set(String(s || '').toLowerCase().split(',').map(x => x.trim()).filter(Boolean));
 }
 
+// ── Roles roster (President-managed source of truth for the grid slides) ───────
+// Team | Role | Member | Trade. Seeded once from the current deck; the President
+// edits this going forward (term swaps, new members). The slide automation
+// reads THIS to fill each team's grid.
+const ROLES_TEAMS = ['Leadership Team', 'Membership Committee', 'Visitor Host', 'Support Leadership'];
+
+// Seed: [Team, Role, Member] read off the current slides. Trade is looked up
+// from Active_Members automatically. The President verifies/adjusts after.
+const ROLES_SEED = [
+  ['Leadership Team',      'President',               'Iskons'],
+  ['Leadership Team',      'Vice-President',          'Pang Wee Khai'],
+  ['Leadership Team',      'Secretary Treasurer',     'Rachel Teo'],
+  ['Membership Committee', 'Committee Member',        'Benjamin Wong'],
+  ['Membership Committee', 'Committee Member',        'Pamela Lin'],
+  ['Membership Committee', 'Committee Member',        'Joanne Sooi'],
+  ['Membership Committee', 'Committee Member',        'Jay Tan'],
+  ['Membership Committee', 'Committee Member',        'Deborah Chueh'],
+  ['Visitor Host',         'Visitor Host',            'Sandy Au'],
+  ['Visitor Host',         'Visitor Host',            'Lee Jia Zheng'],
+  ['Visitor Host',         'Visitor Host',            'Ivan Ang'],
+  ['Visitor Host',         'Visitor Host',            'Daniel Yen'],
+  ['Visitor Host',         'Visitor Orientation',     'Kay Tan'],
+  ['Visitor Host',         'Visitor Host',            'Kuek Yu Xi'],
+  ['Support Leadership',   'Network Education',       'Kevin Phua'],
+  ['Support Leadership',   'Presentation Taskforce',  'Benjamin Ng'],
+  ['Support Leadership',   'Event Coordinator',       'Delia Tan'],
+  ['Support Leadership',   'Growth Coordinator',      'Zefirelli Noordin'],
+  ['Support Leadership',   'Visitor Registration',    'Zhao Shu Hui'],
+  ['Support Leadership',   'Photography & Videography','Mark Duma'],
+  ['Support Leadership',   'Logistics',               'Jaron Chan'],
+  ['Support Leadership',   'Marketing Lead',          'Arun Prasad'],
+  ['Support Leadership',   'Tech Coordinator',        'Lee Jia Zheng'],
+];
+
+// Build member name → trade from Active_Members (col B name, col J trade category).
+function tradeByMember_() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const am = ss.getSheetByName(SN.ACTIVE_MEMBERS);
+  const map = {};
+  if (am && am.getLastRow() > 1) {
+    am.getRange(2, 2, am.getLastRow() - 1, 9).getValues().forEach(r => { // B..J
+      const name  = String(r[0]).trim().toLowerCase();
+      const trade = String(r[8]).trim();
+      if (name) map[name] = trade;
+    });
+  }
+  return map;
+}
+
+// Reads the Roles sheet → [{team, role, member, trade}]. Empty if not set up.
+function getRoles_() {
+  const ss    = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ss.getSheetByName(SN.ROLES);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues()
+    .map(r => ({ team: String(r[0]).trim(), role: String(r[1]).trim(), member: String(r[2]).trim(), trade: String(r[3]).trim() }))
+    .filter(r => r.member);
+}
+
+// Creates/refreshes the Roles sheet with dropdowns; seeds once if empty.
+function setupRolesSheet() {
+  const ss    = SpreadsheetApp.openById(SHEET_ID);
+  let sheet   = ss.getSheetByName(SN.ROLES);
+  if (!sheet) sheet = ss.insertSheet(SN.ROLES);
+
+  sheet.getRange(1, 1, 1, 4)
+    .setValues([['Team', 'Role', 'Member', 'Trade']])
+    .setBackground('#1a5276').setFontColor('#ffffff')
+    .setFontWeight('bold').setHorizontalAlignment('center');
+  sheet.setFrozenRows(1);
+  [180, 210, 180, 240].forEach((w, i) => sheet.setColumnWidth(i + 1, w));
+
+  // Dropdowns: Team (col A) and Member (col C, from roster)
+  const teamRule = SpreadsheetApp.newDataValidation().requireValueInList(ROLES_TEAMS, true).setAllowInvalid(true).build();
+  const nameRule = SpreadsheetApp.newDataValidation().requireValueInList(getRoster_(), true).setAllowInvalid(true).build();
+  sheet.getRange(2, 1, 300, 1).setDataValidation(teamRule);
+  sheet.getRange(2, 3, 300, 1).setDataValidation(nameRule);
+
+  let seeded = 0;
+  if (sheet.getLastRow() < 2) {
+    const trades = tradeByMember_();
+    const rows = ROLES_SEED.map(([team, role, member]) => [team, role, member, trades[member.toLowerCase()] || '']);
+    sheet.getRange(2, 1, rows.length, 4).setValues(rows);
+    seeded = rows.length;
+  }
+
+  try {
+    SpreadsheetApp.getUi().alert('✅ Roles sheet ready.\n\n' +
+      (seeded ? 'Seeded ' + seeded + ' roles from the current slides.\nPlease verify the roles/trades, then we wire the slides to it.'
+              : 'Roles sheet already has data — left untouched.'));
+  } catch (_) {}
+  return { seeded, total: getRoles_().length };
+}
+
 // ── Utility ───────────────────────────────────────────────────────────────────
 function jsonOk_(payload) {
   return ContentService
@@ -1114,6 +1213,8 @@ function onOpen() {
     .addSeparator()
     .addItem('🗓️  Setup Roster Sheet',                      'setupRosterSheet')
     .addItem('⬆️  Push Roster to Sheets',                   'pushRosterToSheets')
+    .addSeparator()
+    .addItem('👥 Setup Roles Sheet (teams/roles)',          'setupRolesSheet')
     .addToUi();
 }
 
