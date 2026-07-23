@@ -109,6 +109,12 @@ function doGet(e) {
   if (action === 'updateTitleDate')      return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(updateTitleDate_())
                                             : jsonErr_('Invalid PIN');
+  if (action === 'testInsertPhoto')      return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(testInsertPhoto_(e.parameter.member || 'Mark Duma'))
+                                            : jsonErr_('Invalid PIN');
+  if (action === 'testRemovePhoto')      return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(testRemovePhoto_())
+                                            : jsonErr_('Invalid PIN');
 
   const response = {
     status:    'ok',
@@ -1320,6 +1326,43 @@ function checkHeadshots_(teamName) {
     folderFileCount: files.length,
     matches,
   };
+}
+
+// ── Phase C: photo insertion (de-risk test) ──────────────────────────────────
+// Share a Drive file link-viewable and return a Slides-fetchable image URL.
+function shareAndThumbUrl_(fileId) {
+  const f = DriveApp.getFileById(fileId);
+  try { f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { logError_('share', e); }
+  return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1600';
+}
+
+// Insert ONE member's headshot onto slide 14 at a visible test spot.
+// Proves Drive→Slides image insertion works before building the full grid.
+const SUPPORT_SLIDE_ID = 'g3da1b38dbc6_0_19';  // slide 14
+
+function testInsertPhoto_(member) {
+  const chk = checkHeadshots_('Support Leadership');
+  const m   = chk.matches.find(x => x.member.toLowerCase() === String(member).toLowerCase());
+  if (!m || !m.fileId) return { error: 'no matched photo for ' + member };
+
+  const url = shareAndThumbUrl_(m.fileId);
+  const code = slidesBatchUpdate_([{
+    createImage: {
+      objectId: 'testphoto1',
+      url: url,
+      elementProperties: {
+        pageObjectId: SUPPORT_SLIDE_ID,
+        size:      { width: { magnitude: 1500000, unit: 'EMU' }, height: { magnitude: 1750000, unit: 'EMU' } },
+        transform: { scaleX: 1, scaleY: 1, translateX: 400000, translateY: 400000, unit: 'EMU' },
+      },
+    },
+  }]);
+  return { member: m.member, file: m.file, url, batchCode: code };
+}
+
+// Remove the test image.
+function testRemovePhoto_() {
+  return { batchCode: slidesBatchUpdate_([{ deleteObject: { objectId: 'testphoto1' } }]) };
 }
 
 // ── Title slide date — auto-set to the upcoming Tuesday meeting ───────────────
