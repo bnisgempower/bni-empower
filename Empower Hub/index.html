@@ -521,6 +521,7 @@
   const LINKS_PAGE = [
     { type: 'link', label: 'New Members Onboarding', desc: 'Onboard a new member', url: 'https://tinyurl.com/BNISGEmpowerOnboarding', icon: 'id'    },
     { type: 'link', label: 'VP Committee Report',    desc: 'MC Team Only',         url: 'https://bnisgempower.github.io/BNI_Sg_Empower/vp-report.html', icon: 'chart' },
+    { type: 'link', label: 'Manage Members & Roles', desc: 'MC Team Only · teams & roles', url: 'https://docs.google.com/spreadsheets/d/1cmBnBAiOWPB71oXmJEUMzCIam7RffTb0INPVM4TNhGw/edit', icon: 'team', pin: true },
     { type: 'link', label: 'Admin Access',           desc: 'MC Team Only',         url: 'https://tinyurl.com/BNISGEmpowerAdmin',      icon: 'sheet' },
     { type: 'zoom', label: 'Weekly Zoom Meeting',           url: 'https://bnionline.zoom.us/j/95446059798?pwd=iVDHmWPW9wSuCXBLVObtH9KxzcQZwA.1', meetingId: '954 4605 9798', passcode: '100326', icon: 'video' },
   ];
@@ -719,6 +720,15 @@
         const a = document.createElement('a');
         a.className = 'link-btn';
         a.href = item.url; a.target = '_blank'; a.rel = 'noopener';
+        if (item.pin) {
+          a.addEventListener('click', ev => {
+            ev.preventDefault();
+            const entered = window.prompt('Enter MC PIN to continue:');
+            if (entered === null) return;               // cancelled
+            if (entered.trim() === '0303') window.open(item.url, '_blank', 'noopener');
+            else alert('Incorrect PIN.');
+          });
+        }
         a.innerHTML =
           '<span class="row-icon">' + svg(item.icon) + '</span>' +
           '<span class="row-body"><div class="row-label">' + esc(item.label) + '</div>' +
