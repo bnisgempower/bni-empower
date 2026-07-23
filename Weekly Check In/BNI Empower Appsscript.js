@@ -94,6 +94,9 @@ function doGet(e) {
                                             ? jsonOk_(setupRolesSheet())
                                             : jsonErr_('Invalid PIN');
   if (action === 'getRoles')             return jsonOk_({ roles: getRoles_() });
+  if (action === 'renderCommittee')      return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(renderCommitteeText_())
+                                            : jsonErr_('Invalid PIN');
 
   const response = {
     status:    'ok',
@@ -1168,6 +1171,47 @@ function setupRolesSheet() {
               : 'Roles sheet already has data — left untouched.'));
   } catch (_) {}
   return { seeded, total: getRoles_().length };
+}
+
+// ── Phase B: render grid TEXT from the Roles sheet ────────────────────────────
+// Each cell's text box holds "Name\nTrade". We replace the name-run and
+// trade-run in place (via replaceAllText scoped to the slide), which keeps each
+// run's own styling (name bold, trade red). Only changed values are touched.
+// textSlots = the cell text-box IDs in the SAME order as the team's Roles rows.
+const COMMITTEE_TEXT_SLOTS = ['p10_i239', 'p10_i251', 'p10_i248', 'p10_i250', 'p10_i241'];
+
+function renderTeamText_(teamName, slideId, textSlots) {
+  const roles = getRoles_().filter(r => r.team.toLowerCase() === teamName.toLowerCase());
+  const cur   = readDeckBoxText_();
+  const requests = [];
+  let changed = 0;
+
+  textSlots.forEach((box, i) => {
+    const role = roles[i];
+    if (!role) return; // fewer members than slots — Phase D (hide) handles this
+    const curText  = String(cur[box] || '').replace(/\n+$/, '');
+    const parts    = curText.split('\n');
+    const oldName  = (parts[0] || '').trim();
+    const oldTrade = parts.slice(1).join(' ').trim();
+    const newName  = role.member.trim();
+    const newTrade = role.trade.trim();
+
+    if (oldName && newName && oldName !== newName) {
+      requests.push({ replaceAllText: { containsText: { text: oldName, matchCase: true }, replaceText: newName, pageObjectIds: [slideId] } });
+      changed++;
+    }
+    if (oldTrade && newTrade && oldTrade !== newTrade) {
+      requests.push({ replaceAllText: { containsText: { text: oldTrade, matchCase: true }, replaceText: newTrade, pageObjectIds: [slideId] } });
+      changed++;
+    }
+  });
+
+  if (requests.length) slidesBatchUpdate_(requests);
+  return { changed, team: teamName };
+}
+
+function renderCommitteeText_() {
+  return renderTeamText_('Membership Committee', COMMITTEE.slideId, COMMITTEE_TEXT_SLOTS);
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────────
