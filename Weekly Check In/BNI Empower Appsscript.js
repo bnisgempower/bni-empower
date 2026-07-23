@@ -720,26 +720,64 @@ function writeCommitteeReport_(data) {
     data.submittedBy || '',
   ]);
 
-  updateStatSlideNumbers_(prev, next);
+  updateStatSlideNumbers_(next);
   return next;
 }
 
-// Replace just the number tokens on Slide 98 (preserves each box's styling).
-function updateStatSlideNumbers_(prev, next) {
-  const tokens = [
-    { old: fmtInt_(prev.referrals),      neu: fmtInt_(next.referrals) },
-    { old: fmtInt_(prev.visitors),       neu: fmtInt_(next.visitors) },
-    { old: '$' + fmtInt_(prev.business), neu: '$' + fmtInt_(next.business) },
+// Reads the current text of the 3 stat boxes on the stats slide → { boxId: text }.
+function readStatBoxes_() {
+  const url  = 'https://slides.googleapis.com/v1/presentations/' + PRESENTATION_ID +
+               '/pages/' + STAT_SLIDE_ID +
+               '?fields=' + encodeURIComponent('pageElements(objectId,shape(text(textElements(textRun(content)))))');
+  const resp = UrlFetchApp.fetch(url, {
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    muteHttpExceptions: true,
+  });
+  if (resp.getResponseCode() !== 200) {
+    logError_('readStatBoxes_', new Error(resp.getContentText().slice(0, 200)));
+    return {};
+  }
+  const els  = JSON.parse(resp.getContentText()).pageElements || [];
+  const byId = {};
+  els.forEach(pe => {
+    let t = '';
+    if (pe.shape && pe.shape.text && pe.shape.text.textElements) {
+      t = pe.shape.text.textElements.map(te => (te.textRun ? te.textRun.content : '')).join('');
+    }
+    byId[pe.objectId] = t;
+  });
+  return byId;
+}
+
+// Self-healing: reads whatever number is currently in each box and overwrites
+// just that number with the new total. Targets each box by its own objectId,
+// so a manual slide edit is corrected on the next submit — and boxes never
+// interfere with each other. Number styling is preserved (we replace the
+// number in place, leaving the label untouched).
+function updateStatSlideNumbers_(next) {
+  const boxText = readStatBoxes_();
+  const plan = [
+    { id: STAT_BOX.referrals, neu: fmtInt_(next.referrals) },
+    { id: STAT_BOX.visitors,  neu: fmtInt_(next.visitors) },
+    { id: STAT_BOX.business,  neu: '$' + fmtInt_(next.business) },
   ];
-  const requests = tokens
-    .filter(t => t.old !== t.neu)
-    .map(t => ({
-      replaceAllText: {
-        containsText:  { text: t.old, matchCase: true },
-        replaceText:   t.neu,
-        pageObjectIds: [STAT_SLIDE_ID],
-      },
-    }));
+
+  const requests = [];
+  plan.forEach(p => {
+    const text = String(boxText[p.id] || '');
+    const m = text.match(/\$?\d[\d,]*/);   // first number token in the box
+    if (!m) { logError_('updateStatSlideNumbers_', new Error('no number in box ' + p.id)); return; }
+    const oldTok = m[0];
+    const start  = m.index;
+    if (oldTok === p.neu) return;           // already correct — nothing to do
+    // Insert the new number, then delete the old one (keeps the number's styling).
+    requests.push({ insertText: { objectId: p.id, insertionIndex: start, text: p.neu } });
+    requests.push({ deleteText: { objectId: p.id, textRange: {
+      type: 'FIXED_RANGE',
+      startIndex: start + p.neu.length,
+      endIndex:   start + p.neu.length + oldTok.length,
+    } } });
+  });
   if (!requests.length) return;
 
   const url  = 'https://slides.googleapis.com/v1/presentations/' + PRESENTATION_ID + ':batchUpdate';
