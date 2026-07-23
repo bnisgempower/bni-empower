@@ -86,6 +86,9 @@ function doGet(e) {
   if (action === 'dumpSlides')           return (e.parameter.pin === ADMIN_PIN)
                                             ? dumpSlides_(e.parameter.find || '', e.parameter.slide || '')
                                             : jsonErr_('Invalid PIN');
+  if (action === 'testCommittee')        return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_({ pairs: reflowGridTeam_(COMMITTEE, parseAbsent_(e.parameter.absent || '')) })
+                                            : jsonErr_('Invalid PIN');
 
   const response = {
     status:    'ok',
@@ -1002,6 +1005,70 @@ function resetNextPresentersAllPresent() {
       (r.unhidden.length ? '\n(' + r.unhidden.join(', ') + ')' : ''));
   } catch (_) {}
   return r;
+}
+
+// ── Grid team: Membership Committee (slide 11 / p10) ──────────────────────────
+// Each member has a photo (image) + a name box. On absence the pair moves
+// off-screen and the row's remaining members re-centre. Vertical position and
+// scale never change — only horizontal position (and hide/show).
+const COMMITTEE = {
+  slideId: 'p10',
+  rows: {
+    1: ['benjamin wong', 'pamela lin', 'joanne sooi'],
+    2: ['jay tan', 'deborah chueh'],
+  },
+  el: {
+    'benjamin wong': { img: { id: 'p10_i238', tx: 2989363, ty: 1459827, sx: 82.7942, sy: 91.0733, w: 18900 },  name: { id: 'p10_i239', tx: 2713964, ty: 3240212, sx: 0.7052, sy: 0.1263, w: 3000000 } },
+    'pamela lin':    { img: { id: 'p10_i236', tx: 5247835, ty: 1451502, sx: 58.5594, sy: 64.5887, w: 26650 },  name: { id: 'p10_i251', tx: 5038194, ty: 3259522, sx: 0.7052, sy: 0.1865, w: 3000000 } },
+    'joanne sooi':   { img: { id: 'p10_i245', tx: 7636840, ty: 1518926, sx: 52.2278, sy: 57.3763, w: 30000 },  name: { id: 'p10_i248', tx: 7362419, ty: 3259509, sx: 0.7052, sy: 0.1865, w: 3000000 } },
+    'jay tan':       { img: { id: 'p10_i249', tx: 4064715, ty: 4085988, sx: 30.6023, sy: 33.6189, w: 51200 },  name: { id: 'p10_i250', tx: 3790294, ty: 5826571, sx: 0.7052, sy: 0.1865, w: 3000000 } },
+    'deborah chueh': { img: { id: 'g3e4e817fee7_0_0', tx: 6322638, ty: 4069292, sx: 58.56, sy: 43.8676, w: 26650 }, name: { id: 'p10_i241', tx: 5801988, ty: 5895767, sx: 0.8673, sy: 0.1619, w: 3000000 } },
+  },
+};
+
+const GRID_OFFSCREEN = 99000000;
+
+function elemTransform_(el, translateX) {
+  return { updatePageElementTransform: {
+    objectId:  el.id,
+    transform: { scaleX: el.sx, scaleY: el.sy, translateX: Math.round(translateX), translateY: el.ty, unit: 'EMU' },
+    applyMode: 'ABSOLUTE',
+  } };
+}
+function elemCentre_(el) { return el.tx + (el.w * el.sx) / 2; }         // current visual centre-X
+function centreToTx_(el, cx) { return cx - (el.w * el.sx) / 2; }        // translateX to put centre at cx
+
+// Reflow one grid team. absentSet = lowercased member names to hide.
+function reflowGridTeam_(team, absentSet) {
+  const requests = [];
+  Object.values(team.rows).forEach(members => {
+    const centres = members.map(m => elemCentre_(team.el[m].img));
+    const spacing = centres.length > 1 ? (centres[centres.length - 1] - centres[0]) / (centres.length - 1) : 2300000;
+    const mid     = centres.reduce((a, b) => a + b, 0) / centres.length;
+    const present = members.filter(m => !absentSet.has(m));
+    const k       = present.length;
+    const allHere = (k === members.length);
+
+    members.forEach(m => {
+      const e = team.el[m];
+      if (absentSet.has(m)) {
+        requests.push(elemTransform_(e.img,  GRID_OFFSCREEN));
+        requests.push(elemTransform_(e.name, GRID_OFFSCREEN));
+        return;
+      }
+      const idx = present.indexOf(m);
+      const cx  = allHere ? elemCentre_(e.img) : Math.round(mid + (idx - (k - 1) / 2) * spacing);
+      requests.push(elemTransform_(e.img,  centreToTx_(e.img,  cx)));
+      requests.push(elemTransform_(e.name, centreToTx_(e.name, cx)));
+    });
+  });
+  if (requests.length) slidesBatchUpdate_(requests);
+  return requests.length / 2; // element-pairs touched
+}
+
+// Test/apply helper: parse "a, b" → lowercased set.
+function parseAbsent_(s) {
+  return new Set(String(s || '').toLowerCase().split(',').map(x => x.trim()).filter(Boolean));
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────────
