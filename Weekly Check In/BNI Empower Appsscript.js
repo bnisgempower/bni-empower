@@ -840,16 +840,21 @@ const NP_ARROW = '⇒'; // ⇒
 function nextPresenterText_(order, i) {
   const a = order[i + 1] ? order[i + 1].name : '';
   const b = order[i + 2] ? order[i + 2].name : '';
-  if (a && b) return 'Next Presenter: ' + a + ' ' + NP_ARROW + ' ' + b;
-  if (a)      return 'Next Presenter: ' + a;
+  // Label on its own line, presenters on the next line (line break after the colon).
+  if (a && b) return 'Next Presenter:\n' + a + ' ' + NP_ARROW + ' ' + b;
+  if (a)      return 'Next Presenter:\n' + a;
   return '';
 }
 
-// Compare loosely so a differing arrow glyph / trailing newline doesn't force a rewrite.
+// Normalise arrow glyph + spacing but PRESERVE the line break, so a box that's
+// missing the break after "Next Presenter:" is detected and rewritten.
 function npNorm_(s) {
   return String(s || '')
+    .replace(/\r/g, '')
     .replace(/[→⇒⟹➔⮕>]+/g, '@')
-    .replace(/\s+/g, ' ').trim();
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n+ */g, '\n')
+    .trim();
 }
 
 // { objectId: text } for every shape text box in the deck (one API call).
