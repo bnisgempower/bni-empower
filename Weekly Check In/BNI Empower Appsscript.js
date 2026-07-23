@@ -115,6 +115,12 @@ function doGet(e) {
   if (action === 'testRemovePhoto')      return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(testRemovePhoto_())
                                             : jsonErr_('Invalid PIN');
+  if (action === 'buildSupportPhotos')   return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(buildSupportPhotos_())
+                                            : jsonErr_('Invalid PIN');
+  if (action === 'removeSupportPhotos')  return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(removeSupportPhotos_())
+                                            : jsonErr_('Invalid PIN');
 
   const response = {
     status:    'ok',
@@ -1304,18 +1310,25 @@ function checkHeadshots_(teamName) {
   const it     = folder.getFiles();
   while (it.hasNext()) { const f = it.next(); files.push({ id: f.getId(), name: f.getName() }); }
 
-  const tokens = s => String(s).toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(Boolean);
+  const tokens  = s => String(s).toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(Boolean);
+  const letters = s => String(s).toLowerCase().replace(/\.[a-z0-9]+$/, '').replace(/[^a-z]/g, '');
+  const sortL   = s => letters(s).split('').sort().join('');
 
   const matches = roles.map(r => {
-    const mtok = tokens(r.member);
-    let best = null, bestScore = 0;
+    const mtok = tokens(r.member), mL = letters(r.member), mS = sortL(r.member);
+    let best = null, bestScore = 0, how = '';
     files.forEach(f => {
-      const ftok    = tokens(f.name);
+      const ftok = tokens(f.name), fL = letters(f.name), fS = sortL(f.name);
+      let score = 0, h = '';
       const overlap = mtok.filter(t => ftok.includes(t)).length;
-      if (overlap > bestScore) { bestScore = overlap; best = f; }
+      if (overlap >= Math.min(2, mtok.length))       { score = 4; h = 'tokens'; }   // e.g. "Kevin Phua"
+      else if (fL.includes(mL) || mL.includes(fL))   { score = 3; h = 'substr'; }    // "Jia Zheng" ⊂ "Jia Zheng Lee"
+      else if (fS === mS)                            { score = 2; h = 'anagram'; }   // "ShuHui Zhao" ↔ "Zhao Shu Hui"
+      else if (overlap === 1 && mtok.length >= 2)    { score = 1; h = 'onetoken'; }  // surname-only (weak)
+      if (score > bestScore) { bestScore = score; best = f; how = h; }
     });
-    const found = bestScore >= Math.min(2, mtok.length);
-    return { member: r.member, found, file: found && best ? best.name : null, fileId: found && best ? best.id : null, score: bestScore };
+    const found = bestScore >= 2;   // accept tokens/substr/anagram; ignore weak one-token
+    return { member: r.member, found, file: found ? best.name : null, fileId: found ? best.id : null, how: found ? how : (best ? 'weak:' + how : 'none') };
   });
 
   return {
@@ -1324,6 +1337,7 @@ function checkHeadshots_(teamName) {
     withPhoto: matches.filter(m => m.found).length,
     missing:   matches.filter(m => !m.found).map(m => m.member),
     folderFileCount: files.length,
+    allFiles:  files.map(f => f.name).sort(),
     matches,
   };
 }
@@ -1363,6 +1377,97 @@ function testInsertPhoto_(member) {
 // Remove the test image.
 function testRemovePhoto_() {
   return { batchCode: slidesBatchUpdate_([{ deleteObject: { objectId: 'testphoto1' } }]) };
+}
+
+// ── Phase C: Support Leadership 9-cell grid ───────────────────────────────────
+// One slide (14), 9 members as 5 top / 4 bottom. Uniform photos (CENTER_CROP)
+// pulled from Drive; text cells reused (5) + duplicated (4) in a later step.
+const SUPPORT_GRID = {
+  slideId:  'g3da1b38dbc6_0_19',
+  photoW:   1400000, photoH: 1750000,
+  marginX:  760000,
+  row:      [ { photoY: 1150575, textY: 3050788 }, { photoY: 4073798, textY: 5959143 } ],
+  textTemplate: 'g3da1b38dbc6_0_20',
+  existingText: {
+    'kevin phua':        'g3da1b38dbc6_0_20',
+    'benjamin ng':       'g3da1b38dbc6_0_33',
+    'delia tan':         'g3da1b38dbc6_0_21',
+    'zefirelli noordin': 'g3d3588e3aa5_0_19',
+    'shuhui zhao':       'g3d3588e3aa5_0_20',
+  },
+  oldImages: ['g3da1b38dbc6_0_24', 'g3e318f96dd2_0_5', 'g3f8034c5580_0_1', 'g3d3588e3aa5_0_21', 'g3d3588e3aa5_0_22'],
+  textSx: 0.66, textSy: 0.32, textW: 3000000,
+};
+
+function suppKey_(n) { return String(n).trim().toLowerCase(); }
+
+// 9 grid slots (5 top, 4 bottom), each { cx, r }.
+function suppSlots_() {
+  const G = SUPPORT_GRID, usable = SLIDE_W - 2 * G.marginX;
+  const cen = n => Array.from({ length: n }, (_, i) => Math.round(G.marginX + usable * (i + 0.5) / n));
+  return cen(5).map(cx => ({ cx, r: 0 })).concat(cen(4).map(cx => ({ cx, r: 1 })));
+}
+
+// Resolve the 9 members + their Drive photo IDs, in Roles order.
+function suppRoster_() {
+  const roles = getRoles_().filter(r => r.team.toLowerCase() === 'support leadership');
+  const chk   = checkHeadshots_('Support Leadership');
+  const photo = {};
+  chk.matches.forEach(m => { if (m.fileId) photo[suppKey_(m.member)] = m.fileId; });
+  const missing = roles.filter(r => !photo[suppKey_(r.member)]).map(r => r.member);
+  return { roles, photo, missing, allFiles: chk.allFiles };
+}
+
+// STEP 1 — place the 9 photos in the grid (uniform, cropped). Text is separate.
+function buildSupportPhotos_() {
+  const G = SUPPORT_GRID;
+  const { roles, photo, missing, allFiles } = suppRoster_();
+  if (roles.length !== 9) return { error: 'expected 9 roles, got ' + roles.length };
+  if (missing.length)     return { error: 'missing photos', missing, allFiles };
+
+  const slots = suppSlots_();
+
+  // Remove the test image + the 5 old images (tolerate any already gone).
+  [{ deleteObject: { objectId: 'testphoto1' } }]
+    .concat(G.oldImages.map(id => ({ deleteObject: { objectId: id } })))
+    .forEach(req => { try { slidesBatchUpdate_([req]); } catch (e) {} });
+
+  // Create 9 fresh images at the slot positions.
+  const createReqs = roles.map((r, i) => {
+    const s = slots[i], band = G.row[s.r];
+    return { createImage: {
+      objectId: 'suppimg' + i,
+      url: shareAndThumbUrl_(photo[suppKey_(r.member)]),
+      elementProperties: {
+        pageObjectId: G.slideId,
+        size:      { width: { magnitude: G.photoW, unit: 'EMU' }, height: { magnitude: G.photoH, unit: 'EMU' } },
+        transform: { scaleX: 1, scaleY: 1, translateX: Math.round(s.cx - G.photoW / 2), translateY: band.photoY, unit: 'EMU' },
+      },
+    } };
+  });
+  const c1 = slidesBatchUpdate_(createReqs);
+
+  // Crop-fill each to the uniform box (CENTER_CROP) + re-assert exact size/position.
+  const cropReqs = [];
+  roles.forEach((r, i) => {
+    const s = slots[i], band = G.row[s.r];
+    cropReqs.push({ replaceImage: { imageObjectId: 'suppimg' + i,
+      url: shareAndThumbUrl_(photo[suppKey_(r.member)]), imageReplaceMethod: 'CENTER_CROP' } });
+    cropReqs.push({ updatePageElementTransform: { objectId: 'suppimg' + i,
+      transform: { scaleX: 1, scaleY: 1, translateX: Math.round(s.cx - G.photoW / 2), translateY: band.photoY, unit: 'EMU' },
+      applyMode: 'ABSOLUTE' } });
+  });
+  const c2 = slidesBatchUpdate_(cropReqs);
+
+  return { ok: true, placed: roles.length, order: roles.map(r => r.member), createCode: c1, cropCode: c2 };
+}
+
+// Remove any grid images (undo STEP 1) to retry cleanly.
+function removeSupportPhotos_() {
+  const reqs = [];
+  for (let i = 0; i < 9; i++) reqs.push({ deleteObject: { objectId: 'suppimg' + i } });
+  reqs.forEach(req => { try { slidesBatchUpdate_([req]); } catch (e) {} });
+  return { removed: true };
 }
 
 // ── Title slide date — auto-set to the upcoming Tuesday meeting ───────────────
