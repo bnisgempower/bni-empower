@@ -130,6 +130,9 @@ function doGet(e) {
   if (action === 'removeSupportText')    return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(removeSupportText_())
                                             : jsonErr_('Invalid PIN');
+  if (action === 'cleanupSupportVariants') return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(cleanupSupportVariants_())
+                                            : jsonErr_('Invalid PIN');
 
   const response = {
     status:    'ok',
@@ -1592,6 +1595,45 @@ function buildSupportText_() {
 function removeSupportText_() {
   for (let i = 6; i <= 9; i++) { try { slidesBatchUpdate_([{ deleteObject: { objectId: 'supptext' + i } }]); } catch (e) {} }
   return { removed: true };
+}
+
+// Does a slide page's combined text contain the given phrase?
+function pageHasText_(slideId, needle) {
+  const url  = 'https://slides.googleapis.com/v1/presentations/' + PRESENTATION_ID +
+               '/pages/' + slideId + '?fields=' + encodeURIComponent('pageElements(shape(text(textElements(textRun(content)))))');
+  const resp = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+  if (resp.getResponseCode() !== 200) return false;
+  let all = '';
+  (JSON.parse(resp.getContentText()).pageElements || []).forEach(pe => {
+    if (pe.shape && pe.shape.text && pe.shape.text.textElements) all += pe.shape.text.textElements.map(te => te.textRun ? te.textRun.content : '').join('');
+  });
+  return all.toLowerCase().includes(String(needle).toLowerCase());
+}
+
+// STEP 3 — finish: unhide the rebuilt slide 14 and delete the 3 old variants.
+// Each variant is only deleted if it really contains "Support Leadership Team".
+const SUPPORT_VARIANT_SLIDES = { 16: 'g3f56d718e25_0_0', 17: 'g3f22d44700a_1_0', 18: 'g3d80786bc1f_6_81' };
+
+function cleanupSupportVariants_() {
+  const report = { unhid14: false, deleted: [], skipped: [] };
+
+  // Unhide slide 14 (the rebuilt grid) so it shows in the deck.
+  try {
+    const pres = SlidesApp.openById(PRESENTATION_ID);
+    pres.getSlides().forEach(s => {
+      if (s.getObjectId() === SUPPORT_SLIDE_ID) { if (s.isSkipped()) { s.setSkipped(false); report.unhid14 = true; } }
+    });
+  } catch (e) { report.unhideError = e.message; }
+
+  // Delete the old variants — verified by content first.
+  const delReqs = [];
+  Object.entries(SUPPORT_VARIANT_SLIDES).forEach(([n, id]) => {
+    if (pageHasText_(id, 'Support Leadership')) { delReqs.push({ deleteObject: { objectId: id } }); report.deleted.push(n); }
+    else report.skipped.push(n + ' (no Support Leadership text — left alone)');
+  });
+  if (delReqs.length) report.delCode = slidesBatchUpdate_(delReqs);
+
+  return report;
 }
 
 // ── Title slide date — auto-set to the upcoming Tuesday meeting ───────────────
