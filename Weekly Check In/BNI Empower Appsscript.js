@@ -124,6 +124,12 @@ function doGet(e) {
   if (action === 'saveDeliaPhoto')       return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(saveDeliaPhoto_())
                                             : jsonErr_('Invalid PIN');
+  if (action === 'buildSupportText')     return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(buildSupportText_())
+                                            : jsonErr_('Invalid PIN');
+  if (action === 'removeSupportText')    return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(removeSupportText_())
+                                            : jsonErr_('Invalid PIN');
 
   const response = {
     status:    'ok',
@@ -1509,6 +1515,82 @@ function removeSupportPhotos_() {
   const reqs = [];
   for (let i = 0; i < 9; i++) reqs.push({ deleteObject: { objectId: 'suppimg' + i } });
   reqs.forEach(req => { try { slidesBatchUpdate_([req]); } catch (e) {} });
+  return { removed: true };
+}
+
+// Replace a cell's Role/Name/Trade lines in place, preserving each line's style.
+// rawTmpl = the cell's current text (with line breaks). Offsets come from the
+// actual string, so any line-break type works. Edits run last→first so indices
+// stay valid. Returns the batchUpdate requests (empty if <3 lines).
+function styledCellReplace_(cellId, rawTmpl, newR, newN, newT) {
+  const raw  = String(rawTmpl).replace(/[\n\r\v\f\u0085\u2028\u2029]+$/, '');
+  const segs = [];
+  let last = 0, m;
+  const re = /[\n\r\v\f\u0085\u2028\u2029]+/g;
+  while ((m = re.exec(raw)) !== null) { segs.push({ text: raw.slice(last, m.index), start: last }); last = m.index + m[0].length; }
+  segs.push({ text: raw.slice(last), start: last });
+  if (segs.length < 3) return [];
+
+  const reqs = [];
+  const rep = (seg, neu) => {
+    neu = String(neu || '').trim();
+    if (!seg.text || !neu || seg.text === neu) return;
+    reqs.push({ insertText: { objectId: cellId, insertionIndex: seg.start, text: neu } });
+    reqs.push({ deleteText: { objectId: cellId, textRange: {
+      type: 'FIXED_RANGE', startIndex: seg.start + neu.length, endIndex: seg.start + neu.length + seg.text.length } } });
+  };
+  rep(segs[2], newT);   // trade  (last first)
+  rep(segs[1], newN);   // name
+  rep(segs[0], newR);   // role
+  return reqs;
+}
+
+// STEP 2 — text cells: reuse 5 existing, duplicate 4 new, fill + position all 9.
+function buildSupportText_() {
+  const G = SUPPORT_GRID;
+  const roles = getRoles_().filter(r => r.team.toLowerCase() === 'support leadership');
+  if (roles.length !== 9) return { error: 'expected 9 roles, got ' + roles.length };
+
+  const slots = suppSlots_();
+  const cur   = readDeckBoxText_();
+  const tmplRaw = String(cur[G.textTemplate] || '');
+
+  // Clear any prior new cells, then duplicate the template for members 6–9.
+  for (let i = 6; i <= 9; i++) { try { slidesBatchUpdate_([{ deleteObject: { objectId: 'supptext' + i } }]); } catch (e) {} }
+  const dupReqs = [];
+  for (let i = 6; i <= 9; i++) dupReqs.push({ duplicateObject: { objectId: G.textTemplate, objectIds: { [G.textTemplate]: 'supptext' + i } } });
+  const dupCode = slidesBatchUpdate_(dupReqs);
+
+  // Fill the 4 new cells (they start as copies of the template's text).
+  const newMembers = roles.slice(5);
+  let filled = 0;
+  newMembers.forEach((r, k) => {
+    const id   = 'supptext' + (k + 6);
+    const reqs = styledCellReplace_(id, tmplRaw, r.role, r.member, r.trade);
+    if (reqs.length) { slidesBatchUpdate_(reqs); filled++; }
+  });
+
+  // Position all 9 cells (uniform scale) centred under their photos.
+  const sizes = readSlideElementSizes_(G.slideId);
+  const cellIdFor = (i, member) => (i < 5 ? G.existingText[suppKey_(member)] : 'supptext' + (i + 1));
+  const posReqs = [];
+  roles.forEach((r, i) => {
+    const id = cellIdFor(i, r.member);
+    if (!id) return;
+    const s = slots[i], band = G.row[s.r];
+    const w = (sizes[id] && sizes[id].w) ? sizes[id].w : G.textW;
+    posReqs.push({ updatePageElementTransform: { objectId: id,
+      transform: { scaleX: G.textSx, scaleY: G.textSy,
+                   translateX: Math.round(s.cx - (w * G.textSx) / 2), translateY: band.textY, unit: 'EMU' },
+      applyMode: 'ABSOLUTE' } });
+  });
+  const posCode = slidesBatchUpdate_(posReqs);
+
+  return { ok: true, duplicated: 4, filled, positioned: posReqs.length, dupCode, posCode };
+}
+
+function removeSupportText_() {
+  for (let i = 6; i <= 9; i++) { try { slidesBatchUpdate_([{ deleteObject: { objectId: 'supptext' + i } }]); } catch (e) {} }
   return { removed: true };
 }
 
