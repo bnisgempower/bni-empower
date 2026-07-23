@@ -81,7 +81,7 @@ function doGet(e) {
   if (action === 'getNextPresenters')    return getNextPresenters_();
   if (action === 'getCommitteeTotals')   return getCommitteeTotalsAction_();
   if (action === 'resetNextPresenters')  return (e.parameter.pin === ADMIN_PIN)
-                                            ? jsonOk_(applyNextPresenterChain_(NEXT_PRES_ORDER))
+                                            ? jsonOk_(resetAllPresent_())
                                             : jsonErr_('Invalid PIN');
   if (action === 'dumpSlides')           return (e.parameter.pin === ADMIN_PIN)
                                             ? dumpSlides_(e.parameter.find || '', e.parameter.slide || '')
@@ -835,6 +835,77 @@ const NEXT_PRES_ORDER = [
 // Off-screen leftover boxes from manual week-to-week editing (to remove).
 const NEXT_PRES_ORPHANS = ['g6cba5c9273fffe28_7', 'g3ea5c59300a_0_15', 'g3f56d718e25_0_29'];
 
+// Each member's 30-sec weekly presentation slide (slides 62–91), in order.
+// Used to hide/unhide (skip/unskip) slides based on attendance.
+const WEEKLY_SLIDES = [
+  { name: 'Ariel Chong',       id: 'g3d498035fa2_1_55'  },
+  { name: 'Arun Prasad',       id: 'g6cba5c9273fffe28_1' },
+  { name: 'Ben Wong',          id: 'g3d037e0c29a_0_62'   },
+  { name: 'Ben Tee',           id: 'g3d037e0c29a_0_255'  },
+  { name: 'Benjamin Ng',       id: 'g3d037e0c29a_0_78'   },
+  { name: 'Daniel Yen',        id: 'g3d037e0c29a_0_86'   },
+  { name: 'Deborah Chueh',     id: 'g3d037e0c29a_0_94'   },
+  { name: 'Delia Tan',         id: 'g3e95dbb8fd0_0_0'    },
+  { name: 'Ismail Khamis',     id: 'g3d037e0c29a_0_110'  },
+  { name: 'Ivan Ang',          id: 'g3d037e0c29a_0_118'  },
+  { name: 'Jaron Chan',        id: 'g3d037e0c29a_0_126'  },
+  { name: 'Jay Tan',           id: 'g3d037e0c29a_0_134'  },
+  { name: 'Lee Jia Zheng',     id: 'g3d037e0c29a_0_142'  },
+  { name: 'Zhang Junxian',     id: 'g3dcdba80422_1_3'    },
+  { name: 'Joanne Sooi',       id: 'g3d037e0c29a_0_150'  },
+  { name: 'Jonathan Tan',      id: 'g3f7b7626906_0_0'    },
+  { name: 'Kay Tan',           id: 'g3d037e0c29a_0_158'  },
+  { name: 'Kevin Phua',        id: 'g3d037e0c29a_0_166'  },
+  { name: 'Lawrence Ku',       id: 'g3d037e0c29a_0_174'  },
+  { name: 'Lee E Mae',         id: 'g3e6b5710eea_0_0'    },
+  { name: 'Mark Duma',         id: 'g3d037e0c29a_0_182'  },
+  { name: 'Pamela Lin',        id: 'g3d037e0c29a_0_190'  },
+  { name: 'Rajiv',             id: 'g3dcdba80422_1_14'   },
+  { name: 'Sandy Au',          id: 'g3d037e0c29a_0_206'  },
+  { name: 'Zhao Shu Hui',      id: 'g3d037e0c29a_0_222'  },
+  { name: 'Kuek Yu Xi',        id: 'g3d037e0c29a_0_238'  },
+  { name: 'Zefirelli Noordin', id: 'g3d037e0c29a_0_246'  },
+  { name: 'Rachel Teo',        id: 'g3d037e0c29a_0_198'  },
+  { name: 'Pang Wee Khai',     id: 'g3d037e0c29a_0_230'  },
+  { name: 'Iskons',            id: 'g3d037e0c29a_0_214'  },
+];
+
+// Unhide (unskip) every weekly presentation slide; returns names that were hidden.
+function unhideAllWeeklySlides_() {
+  const want = {};
+  WEEKLY_SLIDES.forEach(w => { want[w.id] = w.name; });
+  const pres = SlidesApp.openById(PRESENTATION_ID);
+  const unhidden = [];
+  pres.getSlides().forEach(s => {
+    const id = s.getObjectId();
+    if (want[id] && s.isSkipped()) { s.setSkipped(false); unhidden.push(want[id]); }
+  });
+  return unhidden;
+}
+
+// Hide/unhide specific members' weekly slides by name.
+function setWeeklySlidesHidden_(memberNames, hide) {
+  const norm = n => String(n).trim().toLowerCase();
+  const targets = new Set(memberNames.map(norm));
+  const idByNorm = {};
+  WEEKLY_SLIDES.forEach(w => { idByNorm[norm(w.name)] = w.id; });
+  const wantHide = {};
+  targets.forEach(t => { if (idByNorm[t]) wantHide[idByNorm[t]] = true; });
+  const pres = SlidesApp.openById(PRESENTATION_ID);
+  let n = 0;
+  pres.getSlides().forEach(s => {
+    if (wantHide[s.getObjectId()]) { s.setSkipped(hide); n++; }
+  });
+  return n;
+}
+
+// Reset to the all-present baseline: correct Next Presenter chain + unhide everyone.
+function resetAllPresent_() {
+  const chain    = applyNextPresenterChain_(NEXT_PRES_ORDER);
+  const unhidden = unhideAllWeeklySlides_();
+  return { changed: chain.changed, deleted: chain.deleted, unhidden: unhidden, unhiddenCount: unhidden.length };
+}
+
 const NP_ARROW = '⇒'; // ⇒
 
 function nextPresenterText_(order, i) {
@@ -917,10 +988,13 @@ function applyNextPresenterChain_(order) {
 }
 
 function resetNextPresentersAllPresent() {
-  const r = applyNextPresenterChain_(NEXT_PRES_ORDER);
+  const r = resetAllPresent_();
   try {
-    SpreadsheetApp.getUi().alert('✅ Next Presenter reset (all present)\n\n' +
-      'Boxes corrected: ' + r.changed + '\nOff-screen leftovers removed: ' + r.deleted);
+    SpreadsheetApp.getUi().alert('✅ Reset to all present\n\n' +
+      'Next Presenter boxes corrected: ' + r.changed + '\n' +
+      'Off-screen leftovers removed: ' + r.deleted + '\n' +
+      'Hidden slides unhidden: ' + r.unhiddenCount +
+      (r.unhidden.length ? '\n(' + r.unhidden.join(', ') + ')' : ''));
   } catch (_) {}
   return r;
 }
