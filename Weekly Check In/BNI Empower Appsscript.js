@@ -121,6 +121,9 @@ function doGet(e) {
   if (action === 'removeSupportPhotos')  return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(removeSupportPhotos_())
                                             : jsonErr_('Invalid PIN');
+  if (action === 'saveDeliaPhoto')       return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(saveDeliaPhoto_())
+                                            : jsonErr_('Invalid PIN');
 
   const response = {
     status:    'ok',
@@ -1348,6 +1351,29 @@ function shareAndThumbUrl_(fileId) {
   const f = DriveApp.getFileById(fileId);
   try { f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { logError_('share', e); }
   return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1600';
+}
+
+// Pull an existing slide image's pixels and save them into the Headshots folder.
+// Used when a member has a photo on a slide but no Drive file (e.g. Delia Tan).
+function saveSlideImageToDrive_(imageId, slideId, fileName) {
+  const url  = 'https://slides.googleapis.com/v1/presentations/' + PRESENTATION_ID +
+               '/pages/' + slideId + '?fields=' + encodeURIComponent('pageElements(objectId,image(contentUrl))');
+  const resp = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+  if (resp.getResponseCode() !== 200) return { error: 'page fetch ' + resp.getResponseCode() };
+  const el = (JSON.parse(resp.getContentText()).pageElements || []).find(e => e.objectId === imageId && e.image);
+  if (!el || !el.image.contentUrl) return { error: 'image not found: ' + imageId };
+
+  const img = UrlFetchApp.fetch(el.image.contentUrl, { muteHttpExceptions: true });
+  if (img.getResponseCode() !== 200) return { error: 'image fetch ' + img.getResponseCode() };
+
+  const blob = img.getBlob().setName(fileName);
+  const file = DriveApp.getFolderById(HEADSHOTS_FOLDER_ID).createFile(blob);
+  return { ok: true, fileId: file.getId(), name: fileName, bytes: blob.getBytes().length };
+}
+
+// Save Delia Tan's slide-14 photo into Drive so the grid build treats her like everyone else.
+function saveDeliaPhoto_() {
+  return saveSlideImageToDrive_('g3f8034c5580_0_1', 'g3da1b38dbc6_0_19', 'Delia Tan.jpg');
 }
 
 // Insert ONE member's headshot onto slide 14 at a visible test spot.
