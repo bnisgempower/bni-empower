@@ -106,6 +106,9 @@ function doGet(e) {
   if (action === 'checkHeadshots')       return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(checkHeadshots_(e.parameter.team || ''))
                                             : jsonErr_('Invalid PIN');
+  if (action === 'updateTitleDate')      return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(updateTitleDate_())
+                                            : jsonErr_('Invalid PIN');
 
   const response = {
     status:    'ok',
@@ -1319,6 +1322,52 @@ function checkHeadshots_(teamName) {
   };
 }
 
+// ── Title slide date — auto-set to the upcoming Tuesday meeting ───────────────
+// Meetings are Tuesday mornings. This writes the coming Tuesday's date into the
+// title-slide date box (self-healing: replaces the old date, keeps its styling).
+const TITLE_DATE_BOX = 'p2_i158';   // Slide 1 date line — currently "21st July 2026"
+
+function ordinal_(n) {
+  const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+// The coming meeting Tuesday: today if today is Tuesday, else the next Tuesday.
+function upcomingTuesday_() {
+  const now = new Date();
+  const add = (2 - now.getDay() + 7) % 7;   // 0=Sun,1=Mon,2=Tue → days until Tuesday
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + add);
+}
+
+function meetingDateText_(d) {
+  const tz = Session.getScriptTimeZone();
+  return ordinal_(d.getDate()) + ' ' + Utilities.formatDate(d, tz, 'MMMM yyyy');  // e.g. "28th July 2026"
+}
+
+// Update the title-slide date to the upcoming Tuesday. Only writes if it changed.
+function updateTitleDate_() {
+  const newText = meetingDateText_(upcomingTuesday_());
+  const cur     = String(readDeckBoxText_()[TITLE_DATE_BOX] || '');
+  const oldCore = cur.replace(/\n+$/, '');
+  if (oldCore.trim() === newText.trim()) return { changed: false, date: newText };
+
+  const requests = [{ insertText: { objectId: TITLE_DATE_BOX, insertionIndex: 0, text: newText } }];
+  if (oldCore.length) {
+    requests.push({ deleteText: { objectId: TITLE_DATE_BOX, textRange: {
+      type: 'FIXED_RANGE', startIndex: newText.length, endIndex: newText.length + oldCore.length,
+    } } });
+  }
+  slidesBatchUpdate_(requests);
+  return { changed: true, date: newText, was: oldCore };
+}
+
+// Menu-callable wrapper.
+function updateMeetingDate() {
+  const r = updateTitleDate_();
+  try { SpreadsheetApp.getUi().alert('📅 Title date set to: ' + r.date + (r.changed ? '' : ' (already current)')); } catch (_) {}
+  return r;
+}
+
 // ── Utility ───────────────────────────────────────────────────────────────────
 function jsonOk_(payload) {
   return ContentService
@@ -1359,6 +1408,7 @@ function onOpen() {
     .addItem('🖼️  Update Slides from Attendance',            'updateSlidesFromAttendance')
     .addItem('↩️  Restore All Slides',                       'restoreAllSlides')
     .addItem('🔁 Reset Next Presenters (all present)',      'resetNextPresentersAllPresent')
+    .addItem('📅 Update Title Date (next Tuesday)',         'updateMeetingDate')
     .addSeparator()
     .addItem('🗓️  Setup Roster Sheet',                      'setupRosterSheet')
     .addItem('⬆️  Push Roster to Sheets',                   'pushRosterToSheets')
@@ -2141,6 +2191,7 @@ function weeklySundayTrigger() {
   restoreAllSlides();
   Utilities.sleep(2000);  // brief pause to ensure restore completes
   updateSlidesFromAttendance();
+  try { updateTitleDate_(); } catch (e) { Logger.log('updateTitleDate_ error: ' + e.message); }
   Logger.log('=== weeklySundayTrigger END ===');
 }
 
