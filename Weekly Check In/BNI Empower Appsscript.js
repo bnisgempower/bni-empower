@@ -124,12 +124,6 @@ function doGet(e) {
   if (action === 'saveDeliaPhoto')       return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(saveDeliaPhoto_())
                                             : jsonErr_('Invalid PIN');
-  if (action === 'buildSupportText')     return (e.parameter.pin === ADMIN_PIN)
-                                            ? jsonOk_(buildSupportText_())
-                                            : jsonErr_('Invalid PIN');
-  if (action === 'removeSupportText')    return (e.parameter.pin === ADMIN_PIN)
-                                            ? jsonOk_(removeSupportText_())
-                                            : jsonErr_('Invalid PIN');
 
   const response = {
     status:    'ok',
@@ -1523,10 +1517,10 @@ function removeSupportPhotos_() {
 // actual string, so any line-break type works. Edits run last→first so indices
 // stay valid. Returns the batchUpdate requests (empty if <3 lines).
 function styledCellReplace_(cellId, rawTmpl, newR, newN, newT) {
-  const raw  = String(rawTmpl).replace(/[\n\r\v\f\u0085\u2028\u2029]+$/, '');
+  const raw  = String(rawTmpl).replace(/[\n\r\v\f]+$/, '');
   const segs = [];
   let last = 0, m;
-  const re = /[\n\r\v\f\u0085\u2028\u2029]+/g;
+  const re = /[\n\r\v\f]+/g;
   while ((m = re.exec(raw)) !== null) { segs.push({ text: raw.slice(last, m.index), start: last }); last = m.index + m[0].length; }
   segs.push({ text: raw.slice(last), start: last });
   if (segs.length < 3) return [];
