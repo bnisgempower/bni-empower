@@ -103,6 +103,9 @@ function doGet(e) {
   if (action === 'renderTeams')          return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(renderAllGridText_())
                                             : jsonErr_('Invalid PIN');
+  if (action === 'checkHeadshots')       return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(checkHeadshots_(e.parameter.team || ''))
+                                            : jsonErr_('Invalid PIN');
 
   const response = {
     status:    'ok',
@@ -1279,6 +1282,40 @@ function renderAllGridText_() {
   return {
     committee:    renderCommitteeText_(),
     visitorHost:  renderVisitorHostText_(),
+  };
+}
+
+// ── Phase C prep: verify each member has a usable headshot in Drive ───────────
+// Matches Roles members to files in the Headshots folder by name-token overlap,
+// so we know BEFORE building whether any photo is missing/misnamed.
+function checkHeadshots_(teamName) {
+  const roles  = getRoles_().filter(r => teamName ? r.team.toLowerCase() === teamName.toLowerCase() : true);
+  const folder = DriveApp.getFolderById(HEADSHOTS_FOLDER_ID);
+  const files  = [];
+  const it     = folder.getFiles();
+  while (it.hasNext()) { const f = it.next(); files.push({ id: f.getId(), name: f.getName() }); }
+
+  const tokens = s => String(s).toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(Boolean);
+
+  const matches = roles.map(r => {
+    const mtok = tokens(r.member);
+    let best = null, bestScore = 0;
+    files.forEach(f => {
+      const ftok    = tokens(f.name);
+      const overlap = mtok.filter(t => ftok.includes(t)).length;
+      if (overlap > bestScore) { bestScore = overlap; best = f; }
+    });
+    const found = bestScore >= Math.min(2, mtok.length);
+    return { member: r.member, found, file: found && best ? best.name : null, fileId: found && best ? best.id : null, score: bestScore };
+  });
+
+  return {
+    team:      teamName || 'ALL',
+    total:     matches.length,
+    withPhoto: matches.filter(m => m.found).length,
+    missing:   matches.filter(m => !m.found).map(m => m.member),
+    folderFileCount: files.length,
+    matches,
   };
 }
 
