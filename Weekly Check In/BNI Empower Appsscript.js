@@ -610,13 +610,18 @@ function dumpSlides_(find, slideParam) {
       if (pe.shape && pe.shape.text && pe.shape.text.textElements) {
         text = pe.shape.text.textElements.map(te => (te.textRun ? te.textRun.content : '')).join('').replace(/\s+/g, ' ').trim();
       }
-      const t = pe.transform || {};
+      const t  = pe.transform || {};
+      const sz = pe.size || {};
       return {
         id:   pe.objectId,
         kind: pe.image ? 'image' : (pe.shape ? (pe.shape.shapeType || 'shape') : 'other'),
         text: text.slice(0, 90),
         x:    Math.round(t.translateX || 0),
         y:    Math.round(t.translateY || 0),
+        sx:   +Number(t.scaleX || 1).toFixed(4),
+        sy:   +Number(t.scaleY || 1).toFixed(4),
+        w:    sz.width  ? Math.round(sz.width.magnitude)  : 0,
+        h:    sz.height ? Math.round(sz.height.magnitude) : 0,
       };
     });
     const allText = elements.map(el => el.text).filter(Boolean).join(' | ');
