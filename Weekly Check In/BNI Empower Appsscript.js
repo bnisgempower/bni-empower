@@ -130,6 +130,9 @@ function doGet(e) {
   if (action === 'removeSupportText')    return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(removeSupportText_())
                                             : jsonErr_('Invalid PIN');
+  if (action === 'rebuildSupportSlides') return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(rebuildSupportSlides_())
+                                            : jsonErr_('Invalid PIN');
   if (action === 'cleanupSupportVariants') return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(cleanupSupportVariants_())
                                             : jsonErr_('Invalid PIN');
@@ -1595,6 +1598,123 @@ function buildSupportText_() {
 function removeSupportText_() {
   for (let i = 6; i <= 9; i++) { try { slidesBatchUpdate_([{ deleteObject: { objectId: 'supptext' + i } }]); } catch (e) {} }
   return { removed: true };
+}
+
+// ── Support Leadership: max 5 per slide ──────────────────────────────────────
+// 9 members on one slide reads too dense. Members 1–5 (Roles-sheet order) stay
+// on slide 14; the rest go on a DUPLICATE of it, so page 2 inherits slide 14's
+// exact styling instead of being hand-positioned. Reorder rows in the Roles
+// editor to change who lands on which page.
+const SUPP_PER_SLIDE = 5;
+const SUPP_SLIDE2    = 'supp2';
+const SUPP_TITLE_1   = 'g3da1b38dbc6_0_29';
+// Slide 14's 5 text cells, in Roles-row order.
+const SUPP_TEXT_1 = ['g3da1b38dbc6_0_20', 'g3da1b38dbc6_0_33', 'g3da1b38dbc6_0_21',
+                     'g3d3588e3aa5_0_19', 'g3d3588e3aa5_0_20'];
+// Hand-made overflow slides, made obsolete by the generated page 2.
+const SUPP_OLD_OVERFLOW = ['g3f56d718e25_0_13', 'g3dbf0f585b4_4_29', 'g3ec253ce018_0_0'];
+
+// n evenly spaced column centres across the usable slide width.
+function suppRowSlots_(n) {
+  const G = SUPPORT_GRID, usable = SLIDE_W - 2 * G.marginX;
+  return Array.from({ length: n }, (_, i) => Math.round(G.marginX + usable * (i + 0.5) / n));
+}
+
+// Centre one member's photo + text cell on column `cx` of the single row.
+// Photo scale is derived from its NATIVE size so the display box is uniform.
+function suppPlace_(imgId, txtId, cx, sizes) {
+  const G = SUPPORT_GRID, band = G.row[0], reqs = [];
+  const nz = sizes[imgId] || { w: G.photoW, h: G.photoH };
+  reqs.push({ updatePageElementTransform: { objectId: imgId,
+    transform: { scaleX: G.photoW / nz.w, scaleY: G.photoH / nz.h,
+                 translateX: Math.round(cx - G.photoW / 2), translateY: band.photoY, unit: 'EMU' },
+    applyMode: 'ABSOLUTE' } });
+  const tw = (sizes[txtId] && sizes[txtId].w) ? sizes[txtId].w : G.textW;
+  reqs.push({ updatePageElementTransform: { objectId: txtId,
+    transform: { scaleX: G.textSx, scaleY: G.textSy,
+                 translateX: Math.round(cx - (tw * G.textSx) / 2), translateY: band.textY, unit: 'EMU' },
+    applyMode: 'ABSOLUTE' } });
+  return reqs;
+}
+
+function rebuildSupportSlides_() {
+  const roles = getRoles_().filter(r => r.team.toLowerCase() === 'support leadership');
+  if (!roles.length) return { error: 'no Support Leadership roles' };
+  if (roles.length > 2 * SUPP_PER_SLIDE) return { error: 'more than 10 members — a 3rd slide is needed', count: roles.length };
+
+  const { photo, missing, allFiles } = suppRoster_();
+  if (missing.length) return { error: 'missing photos', missing, allFiles };
+
+  const report = { page1: [], page2: [], removed: [] };
+
+  // ── Page 1 — drop the 2nd-row overflow built earlier, keep the first 5 ──
+  const drop = [];
+  for (let i = 5; i < 9; i++) drop.push({ deleteObject: { objectId: 'suppimg' + i } });
+  for (let i = 6; i <= 9; i++) drop.push({ deleteObject: { objectId: 'supptext' + i } });
+  drop.forEach(req => { try { slidesBatchUpdate_([req]); } catch (e) {} });
+
+  const first = roles.slice(0, SUPP_PER_SLIDE);
+  const cur   = readDeckBoxText_();
+  first.forEach((r, i) => {
+    const reqs = styledCellReplace_(SUPP_TEXT_1[i], String(cur[SUPP_TEXT_1[i]] || ''), r.role, r.member, r.trade);
+    if (reqs.length) slidesBatchUpdate_(reqs);
+    report.page1.push(r.member);
+  });
+  const cols1  = suppRowSlots_(first.length);
+  const sizes1 = readSlideElementSizes_(SUPPORT_SLIDE_ID);
+  let pos1 = [];
+  first.forEach((r, i) => { pos1 = pos1.concat(suppPlace_('suppimg' + i, SUPP_TEXT_1[i], cols1[i], sizes1)); });
+  report.pos1Code = slidesBatchUpdate_(pos1);
+
+  // ── Page 2 — a fresh duplicate of page 1, trimmed to the overflow members ──
+  const rest = roles.slice(SUPP_PER_SLIDE);
+  if (rest.length) {
+    try { slidesBatchUpdate_([{ deleteObject: { objectId: SUPP_SLIDE2 } }]); } catch (e) {}
+
+    const idMap = {};
+    idMap[SUPPORT_SLIDE_ID] = SUPP_SLIDE2;
+    idMap[SUPP_TITLE_1]     = SUPP_SLIDE2 + 'title';
+    for (let i = 0; i < SUPP_PER_SLIDE; i++) {
+      idMap['suppimg' + i]  = SUPP_SLIDE2 + 'i' + i;
+      idMap[SUPP_TEXT_1[i]] = SUPP_SLIDE2 + 't' + i;
+    }
+    report.dupCode = slidesBatchUpdate_([{ duplicateObject: { objectId: SUPPORT_SLIDE_ID, objectIds: idMap } }]);
+
+    // Remove the copied cells page 2 doesn't need.
+    for (let i = rest.length; i < SUPP_PER_SLIDE; i++) {
+      [SUPP_SLIDE2 + 'i' + i, SUPP_SLIDE2 + 't' + i].forEach(id => {
+        try { slidesBatchUpdate_([{ deleteObject: { objectId: id } }]); } catch (e) {}
+      });
+    }
+
+    // Swap in the overflow members' text + photos.
+    const cur2 = readDeckBoxText_();
+    const imgReqs = [];
+    rest.forEach((r, i) => {
+      const t = SUPP_SLIDE2 + 't' + i;
+      const reqs = styledCellReplace_(t, String(cur2[t] || ''), r.role, r.member, r.trade);
+      if (reqs.length) slidesBatchUpdate_(reqs);
+      imgReqs.push({ replaceImage: { imageObjectId: SUPP_SLIDE2 + 'i' + i,
+        url: shareAndThumbUrl_(photo[suppKey_(r.member)]), imageReplaceMethod: 'CENTER_CROP' } });
+      report.page2.push(r.member);
+    });
+    report.imgCode = slidesBatchUpdate_(imgReqs);
+
+    const cols2  = suppRowSlots_(rest.length);
+    const sizes2 = readSlideElementSizes_(SUPP_SLIDE2);
+    let pos2 = [];
+    rest.forEach((r, i) => { pos2 = pos2.concat(suppPlace_(SUPP_SLIDE2 + 'i' + i, SUPP_SLIDE2 + 't' + i, cols2[i], sizes2)); });
+    report.pos2Code = slidesBatchUpdate_(pos2);
+  }
+
+  // ── Retire the hand-made overflow slides (content-checked first) ──
+  const dels = [];
+  SUPP_OLD_OVERFLOW.forEach(id => {
+    if (pageHasText_(id, 'Support Leadership')) { dels.push({ deleteObject: { objectId: id } }); report.removed.push(id); }
+  });
+  if (dels.length) report.delCode = slidesBatchUpdate_(dels);
+
+  return report;
 }
 
 // Does a slide page's combined text contain the given phrase?
