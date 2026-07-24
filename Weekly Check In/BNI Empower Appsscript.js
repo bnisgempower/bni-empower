@@ -130,6 +130,9 @@ function doGet(e) {
   if (action === 'removeSupportText')    return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(removeSupportText_())
                                             : jsonErr_('Invalid PIN');
+  if (action === 'relayoutSupport')      return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(relayoutSupport_())
+                                            : jsonErr_('Invalid PIN');
   if (action === 'rebuildSupportSlides') return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(rebuildSupportSlides_())
                                             : jsonErr_('Invalid PIN');
@@ -1422,7 +1425,9 @@ function testRemovePhoto_() {
 // pulled from Drive; text cells reused (5) + duplicated (4) in a later step.
 const SUPPORT_GRID = {
   slideId:  'g3da1b38dbc6_0_19',
-  photoW:   1400000, photoH: 1750000,
+  // Sized so TWO rows of photo+text still fit under the title with even
+  // margins (a 5-member slide runs 3 over 2). Aspect matches the old 4:5 box.
+  photoW:   1160000, photoH: 1450000,
   marginX:  760000,
   row:      [ { photoY: 1150575, textY: 3050788 }, { photoY: 4073798, textY: 5959143 } ],
   textTemplate: 'g3da1b38dbc6_0_20',
@@ -1614,27 +1619,97 @@ const SUPP_TEXT_1 = ['g3da1b38dbc6_0_20', 'g3da1b38dbc6_0_33', 'g3da1b38dbc6_0_2
 // Hand-made overflow slides, made obsolete by the generated page 2.
 const SUPP_OLD_OVERFLOW = ['g3f56d718e25_0_13', 'g3dbf0f585b4_4_29', 'g3ec253ce018_0_0'];
 
-// n evenly spaced column centres across the usable slide width.
-function suppRowSlots_(n) {
-  const G = SUPPORT_GRID, usable = SLIDE_W - 2 * G.marginX;
-  return Array.from({ length: n }, (_, i) => Math.round(G.marginX + usable * (i + 0.5) / n));
+// ── Layout engine ────────────────────────────────────────────────────────────
+// Rows: 5 members read better as 3 over 2 than as one long row of 5.
+// A row of 4 still reads fine unbroken, so it stays on one line.
+function suppRowSplit_(n) {
+  if (n <= 4) return [n];
+  return [Math.ceil(n / 2), Math.floor(n / 2)];   // 5 → [3, 2]
 }
 
-// Centre one member's photo + text cell on column `cx` of the single row.
-// Photo scale is derived from its NATIVE size so the display box is uniform.
-function suppPlace_(imgId, txtId, cx, sizes) {
-  const G = SUPPORT_GRID, band = G.row[0], reqs = [];
-  const nz = sizes[imgId] || { w: G.photoW, h: G.photoH };
-  reqs.push({ updatePageElementTransform: { objectId: imgId,
-    transform: { scaleX: G.photoW / nz.w, scaleY: G.photoH / nz.h,
-                 translateX: Math.round(cx - G.photoW / 2), translateY: band.photoY, unit: 'EMU' },
-    applyMode: 'ABSOLUTE' } });
-  const tw = (sizes[txtId] && sizes[txtId].w) ? sizes[txtId].w : G.textW;
-  reqs.push({ updatePageElementTransform: { objectId: txtId,
-    transform: { scaleX: G.textSx, scaleY: G.textSy,
-                 translateX: Math.round(cx - (tw * G.textSx) / 2), translateY: band.textY, unit: 'EMU' },
-    applyMode: 'ABSOLUTE' } });
+// Column centres per row. Every row uses the SAME pitch (set by the widest row)
+// and is centred on the slide, so a short row sits symmetrically under a long one.
+function suppColumns_(split) {
+  const usable = SLIDE_W - 2 * SUPPORT_GRID.marginX;
+  const pitch  = usable / Math.max.apply(null, split);
+  const midX   = SLIDE_W / 2;
+  return split.map(k => Array.from({ length: k },
+    (_, i) => Math.round(midX + (i - (k - 1) / 2) * pitch)));
+}
+
+// ── Vertical framing ──
+// The inherited layout anchored the row near the top, leaving a large dead band
+// below. Instead the whole photo+text block is centred in the space under the
+// title bar. The cell's BOX is 960000 EMU tall but only ~4 lines actually
+// render, so the block is measured by rendered height, not box height.
+const SUPP_SLIDE_H        = 6858000;   // slide canvas height
+const SUPP_TITLE_BOTTOM   = 1032725;   // bottom edge of the title box
+const SUPP_TEXT_RENDER_H  =  900000;   // ~4 rendered lines of Role/Name/Trade
+const SUPP_PHOTO_TEXT_GAP =  130000;   // photo bottom → cell top
+const SUPP_ROW_GAP        =  325275;   // breathing room between the two rows
+
+// Top-y for each row's photo band and text band.
+function suppBands_(rowCount) {
+  const G        = SUPPORT_GRID;
+  const rowBlock = G.photoH + SUPP_PHOTO_TEXT_GAP + SUPP_TEXT_RENDER_H;
+  const avail    = SUPP_SLIDE_H - SUPP_TITLE_BOTTOM;
+  const total    = rowCount * rowBlock + (rowCount - 1) * SUPP_ROW_GAP;
+  const top      = SUPP_TITLE_BOTTOM + (avail - total) / 2;
+  return Array.from({ length: rowCount }, (_, r) => {
+    const py = Math.round(top + r * (rowBlock + SUPP_ROW_GAP));
+    return { photoY: py, textY: py + G.photoH + SUPP_PHOTO_TEXT_GAP };
+  });
+}
+
+// Position every photo + cell on one slide. idFor(k) → { img, txt } for the
+// k-th member in Roles order. Photo scale comes from each image's NATIVE size
+// so every display box ends up identical.
+function suppPlaceAll_(idFor, count, sizes) {
+  const G     = SUPPORT_GRID;
+  const split = suppRowSplit_(count);
+  const cols  = suppColumns_(split);
+  const bands = suppBands_(split.length);
+  const reqs  = [];
+  let k = 0;
+  split.forEach((rowN, r) => {
+    for (let c = 0; c < rowN; c++, k++) {
+      const ids = idFor(k);
+      if (!ids || !ids.img || !ids.txt) continue;
+      const cx = cols[r][c], band = bands[r];
+      const nz = sizes[ids.img] || { w: G.photoW, h: G.photoH };
+      reqs.push({ updatePageElementTransform: { objectId: ids.img,
+        transform: { scaleX: G.photoW / nz.w, scaleY: G.photoH / nz.h,
+                     translateX: Math.round(cx - G.photoW / 2), translateY: band.photoY, unit: 'EMU' },
+        applyMode: 'ABSOLUTE' } });
+      const tw = (sizes[ids.txt] && sizes[ids.txt].w) ? sizes[ids.txt].w : G.textW;
+      reqs.push({ updatePageElementTransform: { objectId: ids.txt,
+        transform: { scaleX: G.textSx, scaleY: G.textSy,
+                     translateX: Math.round(cx - (tw * G.textSx) / 2), translateY: band.textY, unit: 'EMU' },
+        applyMode: 'ABSOLUTE' } });
+    }
+  });
   return reqs;
+}
+
+// Reposition only — no photo re-upload, no slide duplication. Safe to re-run
+// after tweaking any of the layout constants above.
+function relayoutSupport_() {
+  const roles = getRoles_().filter(r => r.team.toLowerCase() === 'support leadership');
+  const first = roles.slice(0, SUPP_PER_SLIDE);
+  const rest  = roles.slice(SUPP_PER_SLIDE);
+  const out   = { page1: first.length, page2: rest.length,
+                  split1: suppRowSplit_(first.length), split2: suppRowSplit_(rest.length) };
+
+  const s1 = readSlideElementSizes_(SUPPORT_SLIDE_ID);
+  out.page1Code = slidesBatchUpdate_(suppPlaceAll_(
+    k => ({ img: 'suppimg' + k, txt: SUPP_TEXT_1[k] }), first.length, s1));
+
+  if (rest.length) {
+    const s2 = readSlideElementSizes_(SUPP_SLIDE2);
+    out.page2Code = slidesBatchUpdate_(suppPlaceAll_(
+      k => ({ img: SUPP_SLIDE2 + 'i' + k, txt: SUPP_SLIDE2 + 't' + k }), rest.length, s2));
+  }
+  return out;
 }
 
 function rebuildSupportSlides_() {
@@ -1660,11 +1735,10 @@ function rebuildSupportSlides_() {
     if (reqs.length) slidesBatchUpdate_(reqs);
     report.page1.push(r.member);
   });
-  const cols1  = suppRowSlots_(first.length);
   const sizes1 = readSlideElementSizes_(SUPPORT_SLIDE_ID);
-  let pos1 = [];
-  first.forEach((r, i) => { pos1 = pos1.concat(suppPlace_('suppimg' + i, SUPP_TEXT_1[i], cols1[i], sizes1)); });
-  report.pos1Code = slidesBatchUpdate_(pos1);
+  report.split1   = suppRowSplit_(first.length);
+  report.pos1Code = slidesBatchUpdate_(suppPlaceAll_(
+    k => ({ img: 'suppimg' + k, txt: SUPP_TEXT_1[k] }), first.length, sizes1));
 
   // ── Page 2 — a fresh duplicate of page 1, trimmed to the overflow members ──
   const rest = roles.slice(SUPP_PER_SLIDE);
@@ -1700,11 +1774,10 @@ function rebuildSupportSlides_() {
     });
     report.imgCode = slidesBatchUpdate_(imgReqs);
 
-    const cols2  = suppRowSlots_(rest.length);
     const sizes2 = readSlideElementSizes_(SUPP_SLIDE2);
-    let pos2 = [];
-    rest.forEach((r, i) => { pos2 = pos2.concat(suppPlace_(SUPP_SLIDE2 + 'i' + i, SUPP_SLIDE2 + 't' + i, cols2[i], sizes2)); });
-    report.pos2Code = slidesBatchUpdate_(pos2);
+    report.split2   = suppRowSplit_(rest.length);
+    report.pos2Code = slidesBatchUpdate_(suppPlaceAll_(
+      k => ({ img: SUPP_SLIDE2 + 'i' + k, txt: SUPP_SLIDE2 + 't' + k }), rest.length, sizes2));
   }
 
   // ── Retire the hand-made overflow slides (content-checked first) ──
