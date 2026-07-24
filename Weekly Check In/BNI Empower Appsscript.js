@@ -1953,11 +1953,13 @@ function sendMissingEmail_(missing) {
 // RULES:
 //   • Leadership Team slides (President, VP, Sec-Treas) — NEVER modified.
 //     They always show regardless of attendance.
-//   • Support Team slide (Slide 15) — absent members (even with sub) are
-//     hidden and remaining members are auto-rearranged into a clean grid:
-//         ≤ 4 profiles → single centred row
-//         > 4 profiles → two rows (top row has more if odd count)
-//   • Event Coordinator slot — kept vacant until a member is assigned.
+//   • Support Leadership pages (slide 14 + its generated page 2) — absent
+//     members (even with a sub) are moved off-screen and the remaining members
+//     re-flow into a tighter row:
+//         ≤ 4 present → single centred row, larger photos
+//         5 present   → 3 over 2
+//     Members never move between pages, and a page with nobody left is skipped.
+//     Membership comes from the Roles sheet, so no per-member config lives here.
 //   • 30-sec intro slides:
 //       ABSENT (no sub)  → slide moved to end of intro section
 //       ABSENT with SUB  → slide kept in place (sub presents)
