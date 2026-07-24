@@ -21,7 +21,6 @@ const VP_NAME  = 'Wee Khai';
 
 // President — cc'd on the weekly missing submissions email
 const PRESIDENT_EMAIL = 'contact.iskons@gmail.com';
-const P_NAME          = 'Iskons';
 
 // ── SHEET NAMES ───────────────────────────────────────────────────────────────
 const SN = {
@@ -35,7 +34,6 @@ const SN = {
   FEATURED_PRES:     'Featured_Presentation',
   DASHBOARD:         'Dashboard',
   ROSTER:            'Roster',
-  SLIDE_MAP:         'Slide_Map',      // Support Team box positions (editable slide→box map)
   INTRO_SLIDES:      'Intro_Slides',   // 30-sec intro slide objectIds per member
   COMMITTEE_REPORT:  'Committee_Report', // VP weekly numbers + running totals
   ROLES:             'Roles',          // President-managed: Team | Role | Member | Trade
@@ -109,35 +107,18 @@ function doGet(e) {
   if (action === 'updateTitleDate')      return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(updateTitleDate_())
                                             : jsonErr_('Invalid PIN');
-  if (action === 'testInsertPhoto')      return (e.parameter.pin === ADMIN_PIN)
-                                            ? jsonOk_(testInsertPhoto_(e.parameter.member || 'Mark Duma'))
-                                            : jsonErr_('Invalid PIN');
-  if (action === 'testRemovePhoto')      return (e.parameter.pin === ADMIN_PIN)
-                                            ? jsonOk_(testRemovePhoto_())
-                                            : jsonErr_('Invalid PIN');
-  if (action === 'buildSupportPhotos')   return (e.parameter.pin === ADMIN_PIN)
-                                            ? jsonOk_(buildSupportPhotos_())
-                                            : jsonErr_('Invalid PIN');
-  if (action === 'removeSupportPhotos')  return (e.parameter.pin === ADMIN_PIN)
-                                            ? jsonOk_(removeSupportPhotos_())
-                                            : jsonErr_('Invalid PIN');
-  if (action === 'saveDeliaPhoto')       return (e.parameter.pin === ADMIN_PIN)
-                                            ? jsonOk_(saveDeliaPhoto_())
-                                            : jsonErr_('Invalid PIN');
-  if (action === 'buildSupportText')     return (e.parameter.pin === ADMIN_PIN)
-                                            ? jsonOk_(buildSupportText_())
-                                            : jsonErr_('Invalid PIN');
-  if (action === 'removeSupportText')    return (e.parameter.pin === ADMIN_PIN)
-                                            ? jsonOk_(removeSupportText_())
+  if (action === 'rebuildSupportPhotos') return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(rebuildSupportPhotos_())
                                             : jsonErr_('Invalid PIN');
   if (action === 'relayoutSupport')      return (e.parameter.pin === ADMIN_PIN)
-                                            ? jsonOk_(relayoutSupport_())
+                                            ? jsonOk_(relayoutSupport_(e.parameter.recrop === '1'))
                                             : jsonErr_('Invalid PIN');
   if (action === 'rebuildSupportSlides') return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(rebuildSupportSlides_())
                                             : jsonErr_('Invalid PIN');
-  if (action === 'cleanupSupportVariants') return (e.parameter.pin === ADMIN_PIN)
-                                            ? jsonOk_(cleanupSupportVariants_())
+  if (action === 'testAbsent')           return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(applySupportAttendance_(
+                                                String(e.parameter.absent || '').split(',').map(s => s.trim()).filter(Boolean)))
                                             : jsonErr_('Invalid PIN');
 
   const response = {
@@ -948,22 +929,6 @@ function unhideAllWeeklySlides_() {
   return unhidden;
 }
 
-// Hide/unhide specific members' weekly slides by name.
-function setWeeklySlidesHidden_(memberNames, hide) {
-  const norm = n => String(n).trim().toLowerCase();
-  const targets = new Set(memberNames.map(norm));
-  const idByNorm = {};
-  WEEKLY_SLIDES.forEach(w => { idByNorm[norm(w.name)] = w.id; });
-  const wantHide = {};
-  targets.forEach(t => { if (idByNorm[t]) wantHide[idByNorm[t]] = true; });
-  const pres = SlidesApp.openById(PRESENTATION_ID);
-  let n = 0;
-  pres.getSlides().forEach(s => {
-    if (wantHide[s.getObjectId()]) { s.setSkipped(hide); n++; }
-  });
-  return n;
-}
-
 // Reset to the all-present baseline: correct Next Presenter chain + unhide everyone.
 function resetAllPresent_() {
   const chain    = applyNextPresenterChain_(NEXT_PRES_ORDER);
@@ -1368,90 +1333,21 @@ function shareAndThumbUrl_(fileId) {
   return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1600';
 }
 
-// Pull an existing slide image's pixels and save them into the Headshots folder.
-// Used when a member has a photo on a slide but no Drive file (e.g. Delia Tan).
-function saveSlideImageToDrive_(imageId, slideId, fileName) {
-  const url  = 'https://slides.googleapis.com/v1/presentations/' + PRESENTATION_ID +
-               '/pages/' + slideId + '?fields=' + encodeURIComponent('pageElements(objectId,image(contentUrl))');
-  const resp = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
-  if (resp.getResponseCode() !== 200) return { error: 'page fetch ' + resp.getResponseCode() };
-  const el = (JSON.parse(resp.getContentText()).pageElements || []).find(e => e.objectId === imageId && e.image);
-  if (!el || !el.image.contentUrl) return { error: 'image not found: ' + imageId };
+// ── Support Leadership pages ─────────────────────────────────────────────────
+// Two generated pages (slide 14 + a duplicate of it). Photos come from Drive,
+// text cells from the Roles sheet, and every position is COMPUTED — nothing on
+// these pages is hand-placed, so the layout survives roster changes.
+const SUPPORT_SLIDE_ID = 'g3da1b38dbc6_0_19';  // slide 14 — page 1
 
-  const img = UrlFetchApp.fetch(el.image.contentUrl, { muteHttpExceptions: true });
-  if (img.getResponseCode() !== 200) return { error: 'image fetch ' + img.getResponseCode() };
-
-  const blob = img.getBlob().setName(fileName);
-  const file = DriveApp.getFolderById(HEADSHOTS_FOLDER_ID).createFile(blob);
-  return { ok: true, fileId: file.getId(), name: fileName, bytes: blob.getBytes().length };
-}
-
-// Save Delia Tan's slide-14 photo into Drive so the grid build treats her like everyone else.
-function saveDeliaPhoto_() {
-  return saveSlideImageToDrive_('g3f8034c5580_0_1', 'g3da1b38dbc6_0_19', 'Delia Tan.jpg');
-}
-
-// Insert ONE member's headshot onto slide 14 at a visible test spot.
-// Proves Drive→Slides image insertion works before building the full grid.
-const SUPPORT_SLIDE_ID = 'g3da1b38dbc6_0_19';  // slide 14
-
-function testInsertPhoto_(member) {
-  const chk = checkHeadshots_('Support Leadership');
-  const m   = chk.matches.find(x => x.member.toLowerCase() === String(member).toLowerCase());
-  if (!m || !m.fileId) return { error: 'no matched photo for ' + member };
-
-  const url = shareAndThumbUrl_(m.fileId);
-  const code = slidesBatchUpdate_([{
-    createImage: {
-      objectId: 'testphoto1',
-      url: url,
-      elementProperties: {
-        pageObjectId: SUPPORT_SLIDE_ID,
-        size:      { width: { magnitude: 1500000, unit: 'EMU' }, height: { magnitude: 1750000, unit: 'EMU' } },
-        transform: { scaleX: 1, scaleY: 1, translateX: 400000, translateY: 400000, unit: 'EMU' },
-      },
-    },
-  }]);
-  return { member: m.member, file: m.file, url, batchCode: code };
-}
-
-// Remove the test image.
-function testRemovePhoto_() {
-  return { batchCode: slidesBatchUpdate_([{ deleteObject: { objectId: 'testphoto1' } }]) };
-}
-
-// ── Phase C: Support Leadership 9-cell grid ───────────────────────────────────
-// One slide (14), 9 members as 5 top / 4 bottom. Uniform photos (CENTER_CROP)
-// pulled from Drive; text cells reused (5) + duplicated (4) in a later step.
 const SUPPORT_GRID = {
-  slideId:  'g3da1b38dbc6_0_19',
-  // Sized so TWO rows of photo+text still fit under the title with even
-  // margins (a 5-member slide runs 3 over 2). Aspect matches the old 4:5 box.
-  photoW:   1160000, photoH: 1450000,
-  marginX:  760000,
-  row:      [ { photoY: 1150575, textY: 3050788 }, { photoY: 4073798, textY: 5959143 } ],
-  textTemplate: 'g3da1b38dbc6_0_20',
-  existingText: {
-    'kevin phua':        'g3da1b38dbc6_0_20',
-    'benjamin ng':       'g3da1b38dbc6_0_33',
-    'delia tan':         'g3da1b38dbc6_0_21',
-    'zefirelli noordin': 'g3d3588e3aa5_0_19',
-    'shuhui zhao':       'g3d3588e3aa5_0_20',
-  },
-  oldImages: ['g3da1b38dbc6_0_24', 'g3e318f96dd2_0_5', 'g3f8034c5580_0_1', 'g3d3588e3aa5_0_21', 'g3d3588e3aa5_0_22'],
-  textSx: 0.66, textSy: 0.32, textW: 3000000,
+  // Cell width matches slide 11 (2115600 = 0.7052 × 3000000), so trade names
+  // wrap the same way they do on the Membership Committee slide.
+  textSx: 0.7052, textSy: 0.32, textW: 3000000,
 };
 
 function suppKey_(n) { return String(n).trim().toLowerCase(); }
 
-// 9 grid slots (5 top, 4 bottom), each { cx, r }.
-function suppSlots_() {
-  const G = SUPPORT_GRID, usable = SLIDE_W - 2 * G.marginX;
-  const cen = n => Array.from({ length: n }, (_, i) => Math.round(G.marginX + usable * (i + 0.5) / n));
-  return cen(5).map(cx => ({ cx, r: 0 })).concat(cen(4).map(cx => ({ cx, r: 1 })));
-}
-
-// Resolve the 9 members + their Drive photo IDs, in Roles order.
+// Resolve the members + their Drive photo IDs, in Roles order.
 function suppRoster_() {
   const roles = getRoles_().filter(r => r.team.toLowerCase() === 'support leadership');
   const chk   = checkHeadshots_('Support Leadership');
@@ -1472,61 +1368,6 @@ function readSlideElementSizes_(slideId) {
     if (pe.size && pe.size.width && pe.size.height) map[pe.objectId] = { w: pe.size.width.magnitude, h: pe.size.height.magnitude };
   });
   return map;
-}
-
-// STEP 1 — place the 9 photos in the grid (uniform, cropped). Text is separate.
-function buildSupportPhotos_() {
-  const G = SUPPORT_GRID;
-  const { roles, photo, missing, allFiles } = suppRoster_();
-  if (roles.length !== 9) return { error: 'expected 9 roles, got ' + roles.length };
-  if (missing.length)     return { error: 'missing photos', missing, allFiles };
-
-  const slots = suppSlots_();
-
-  // Clear the old 5 images + test image + any prior grid attempt.
-  const dels = [{ deleteObject: { objectId: 'testphoto1' } }]
-    .concat(G.oldImages.map(id => ({ deleteObject: { objectId: id } })));
-  for (let i = 0; i < 9; i++) dels.push({ deleteObject: { objectId: 'suppimg' + i } });
-  dels.forEach(req => { try { slidesBatchUpdate_([req]); } catch (e) {} });
-
-  // Create the 9 images (positioned; scale gets corrected below once we know native size).
-  const createReqs = roles.map((r, i) => {
-    const s = slots[i], band = G.row[s.r];
-    return { createImage: {
-      objectId: 'suppimg' + i,
-      url: shareAndThumbUrl_(photo[suppKey_(r.member)]),
-      elementProperties: {
-        pageObjectId: G.slideId,
-        transform: { scaleX: 1, scaleY: 1, translateX: Math.round(s.cx - G.photoW / 2), translateY: band.photoY, unit: 'EMU' },
-      },
-    } };
-  });
-  const c1 = slidesBatchUpdate_(createReqs);
-
-  // Read each image's native size, then scale it to fill the uniform box and CENTER_CROP.
-  const sizes = readSlideElementSizes_(G.slideId);
-  const reqs  = [];
-  roles.forEach((r, i) => {
-    const s = slots[i], band = G.row[s.r], id = 'suppimg' + i;
-    const nz = sizes[id] || { w: G.photoW, h: G.photoH };
-    reqs.push({ updatePageElementTransform: { objectId: id,
-      transform: { scaleX: G.photoW / nz.w, scaleY: G.photoH / nz.h,
-                   translateX: Math.round(s.cx - G.photoW / 2), translateY: band.photoY, unit: 'EMU' },
-      applyMode: 'ABSOLUTE' } });
-    reqs.push({ replaceImage: { imageObjectId: id,
-      url: shareAndThumbUrl_(photo[suppKey_(r.member)]), imageReplaceMethod: 'CENTER_CROP' } });
-  });
-  const c2 = slidesBatchUpdate_(reqs);
-
-  return { ok: true, placed: roles.length, order: roles.map(r => r.member), createCode: c1, fixCode: c2, sizesRead: Object.keys(sizes).length };
-}
-
-// Remove any grid images (undo STEP 1) to retry cleanly.
-function removeSupportPhotos_() {
-  const reqs = [];
-  for (let i = 0; i < 9; i++) reqs.push({ deleteObject: { objectId: 'suppimg' + i } });
-  reqs.forEach(req => { try { slidesBatchUpdate_([req]); } catch (e) {} });
-  return { removed: true };
 }
 
 // Replace a cell's Role/Name/Trade lines in place, preserving each line's style.
@@ -1556,55 +1397,6 @@ function styledCellReplace_(cellId, rawTmpl, newR, newN, newT) {
   return reqs;
 }
 
-// STEP 2 — text cells: reuse 5 existing, duplicate 4 new, fill + position all 9.
-function buildSupportText_() {
-  const G = SUPPORT_GRID;
-  const roles = getRoles_().filter(r => r.team.toLowerCase() === 'support leadership');
-  if (roles.length !== 9) return { error: 'expected 9 roles, got ' + roles.length };
-
-  const slots = suppSlots_();
-  const cur   = readDeckBoxText_();
-  const tmplRaw = String(cur[G.textTemplate] || '');
-
-  // Clear any prior new cells, then duplicate the template for members 6–9.
-  for (let i = 6; i <= 9; i++) { try { slidesBatchUpdate_([{ deleteObject: { objectId: 'supptext' + i } }]); } catch (e) {} }
-  const dupReqs = [];
-  for (let i = 6; i <= 9; i++) dupReqs.push({ duplicateObject: { objectId: G.textTemplate, objectIds: { [G.textTemplate]: 'supptext' + i } } });
-  const dupCode = slidesBatchUpdate_(dupReqs);
-
-  // Fill the 4 new cells (they start as copies of the template's text).
-  const newMembers = roles.slice(5);
-  let filled = 0;
-  newMembers.forEach((r, k) => {
-    const id   = 'supptext' + (k + 6);
-    const reqs = styledCellReplace_(id, tmplRaw, r.role, r.member, r.trade);
-    if (reqs.length) { slidesBatchUpdate_(reqs); filled++; }
-  });
-
-  // Position all 9 cells (uniform scale) centred under their photos.
-  const sizes = readSlideElementSizes_(G.slideId);
-  const cellIdFor = (i, member) => (i < 5 ? G.existingText[suppKey_(member)] : 'supptext' + (i + 1));
-  const posReqs = [];
-  roles.forEach((r, i) => {
-    const id = cellIdFor(i, r.member);
-    if (!id) return;
-    const s = slots[i], band = G.row[s.r];
-    const w = (sizes[id] && sizes[id].w) ? sizes[id].w : G.textW;
-    posReqs.push({ updatePageElementTransform: { objectId: id,
-      transform: { scaleX: G.textSx, scaleY: G.textSy,
-                   translateX: Math.round(s.cx - (w * G.textSx) / 2), translateY: band.textY, unit: 'EMU' },
-      applyMode: 'ABSOLUTE' } });
-  });
-  const posCode = slidesBatchUpdate_(posReqs);
-
-  return { ok: true, duplicated: 4, filled, positioned: posReqs.length, dupCode, posCode };
-}
-
-function removeSupportText_() {
-  for (let i = 6; i <= 9; i++) { try { slidesBatchUpdate_([{ deleteObject: { objectId: 'supptext' + i } }]); } catch (e) {} }
-  return { removed: true };
-}
-
 // ── Support Leadership: max 5 per slide ──────────────────────────────────────
 // 9 members on one slide reads too dense. Members 1–5 (Roles-sheet order) stay
 // on slide 14; the rest go on a DUPLICATE of it, so page 2 inherits slide 14's
@@ -1616,9 +1408,6 @@ const SUPP_TITLE_1   = 'g3da1b38dbc6_0_29';
 // Slide 14's 5 text cells, in Roles-row order.
 const SUPP_TEXT_1 = ['g3da1b38dbc6_0_20', 'g3da1b38dbc6_0_33', 'g3da1b38dbc6_0_21',
                      'g3d3588e3aa5_0_19', 'g3d3588e3aa5_0_20'];
-// Hand-made overflow slides, made obsolete by the generated page 2.
-const SUPP_OLD_OVERFLOW = ['g3f56d718e25_0_13', 'g3dbf0f585b4_4_29', 'g3ec253ce018_0_0'];
-
 // ── Layout engine ────────────────────────────────────────────────────────────
 // Rows: 5 members read better as 3 over 2 than as one long row of 5.
 // A row of 4 still reads fine unbroken, so it stays on one line.
@@ -1627,12 +1416,35 @@ function suppRowSplit_(n) {
   return [Math.ceil(n / 2), Math.floor(n / 2)];   // 5 → [3, 2]
 }
 
+// ── Sizing, matched to slide 11 (Membership Committee) ──
+// Measured off that slide: photo box 1563000×1721285 (aspect 0.908), column
+// pitch 2324245 = 1.487 × photo width, cell width 2115600. Spreading columns
+// evenly across the full slide width instead (the old rule) gave a pitch ratio
+// of 3.07 — hence the gaps that read as too far apart.
+const SUPP_ASPECT       = 0.908;     // photo box width : height
+const SUPP_PITCH_RATIO  = 1.487;     // column pitch as a multiple of photo width
+const SUPP_SIDE_MARGIN  =  700000;   // min slide edge → outer photo edge
+// Photo height by row count. One row gets a noticeably bigger box, otherwise a
+// 4-member slide is mostly empty space with small photos.
+const SUPP_PHOTO_H_1ROW = 2150000;
+const SUPP_PHOTO_H_2ROW = 1720000;
+
+function suppPhotoBox_(rowCount) {
+  const h = rowCount > 1 ? SUPP_PHOTO_H_2ROW : SUPP_PHOTO_H_1ROW;
+  return { w: Math.round(h * SUPP_ASPECT), h: h };
+}
+
 // Column centres per row. Every row uses the SAME pitch (set by the widest row)
-// and is centred on the slide, so a short row sits symmetrically under a long one.
-function suppColumns_(split) {
-  const usable = SLIDE_W - 2 * SUPPORT_GRID.marginX;
-  const pitch  = usable / Math.max.apply(null, split);
-  const midX   = SLIDE_W / 2;
+// and is centred on the slide, so a short row nests symmetrically under a long
+// one. The preferred pitch is tightened only if the widest row would overflow.
+function suppColumns_(split, photoW) {
+  const maxK = Math.max.apply(null, split);
+  let pitch  = photoW * SUPP_PITCH_RATIO;
+  if (maxK > 1) {
+    const cap = (SLIDE_W - 2 * SUPP_SIDE_MARGIN - photoW) / (maxK - 1);
+    if (cap < pitch) pitch = cap;
+  }
+  const midX = SLIDE_W / 2;
   return split.map(k => Array.from({ length: k },
     (_, i) => Math.round(midX + (i - (k - 1) / 2) * pitch)));
 }
@@ -1644,43 +1456,53 @@ function suppColumns_(split) {
 // render, so the block is measured by rendered height, not box height.
 const SUPP_SLIDE_H        = 6858000;   // slide canvas height
 const SUPP_TITLE_BOTTOM   = 1032725;   // bottom edge of the title box
-const SUPP_TEXT_RENDER_H  =  900000;   // ~4 rendered lines of Role/Name/Trade
-const SUPP_PHOTO_TEXT_GAP =  130000;   // photo bottom → cell top
-const SUPP_ROW_GAP        =  325275;   // breathing room between the two rows
+const SUPP_TEXT_RENDER_H  =  750000;   // ~3-4 rendered lines of Role/Name/Trade
+const SUPP_PHOTO_TEXT_GAP =   90000;   // photo bottom → cell top
+const SUPP_ROW_GAP        =  280000;   // breathing room between the two rows
 
 // Top-y for each row's photo band and text band.
-function suppBands_(rowCount) {
-  const G        = SUPPORT_GRID;
-  const rowBlock = G.photoH + SUPP_PHOTO_TEXT_GAP + SUPP_TEXT_RENDER_H;
+function suppBands_(rowCount, photoH) {
+  const rowBlock = photoH + SUPP_PHOTO_TEXT_GAP + SUPP_TEXT_RENDER_H;
   const avail    = SUPP_SLIDE_H - SUPP_TITLE_BOTTOM;
   const total    = rowCount * rowBlock + (rowCount - 1) * SUPP_ROW_GAP;
   const top      = SUPP_TITLE_BOTTOM + (avail - total) / 2;
   return Array.from({ length: rowCount }, (_, r) => {
     const py = Math.round(top + r * (rowBlock + SUPP_ROW_GAP));
-    return { photoY: py, textY: py + G.photoH + SUPP_PHOTO_TEXT_GAP };
+    return { photoY: py, textY: py + photoH + SUPP_PHOTO_TEXT_GAP };
   });
 }
 
-// Position every photo + cell on one slide. idFor(k) → { img, txt } for the
-// k-th member in Roles order. Photo scale comes from each image's NATIVE size
-// so every display box ends up identical.
-function suppPlaceAll_(idFor, count, sizes) {
+// Position a list of photo+cell pairs on one slide, laid out for pairs.length.
+// Taking an explicit LIST (rather than an index range) is what lets absence
+// handling drop a member and re-flow the remainder into a tighter row.
+// Photo scale comes from each image's NATIVE size so every box ends up identical.
+//
+// urlFor(j) (optional) → a Drive image URL for the j-th pair. When supplied the
+// photo is re-cropped AFTER its transform, so CENTER_CROP measures the NEW box.
+// Needed whenever the box ASPECT changes: a crop baked for one aspect gets
+// stretched if the box is later reshaped, which distorts faces.
+function suppPlaceAll_(pairs, sizes, urlFor) {
   const G     = SUPPORT_GRID;
-  const split = suppRowSplit_(count);
-  const cols  = suppColumns_(split);
-  const bands = suppBands_(split.length);
+  const split = suppRowSplit_(pairs.length);
+  const box   = suppPhotoBox_(split.length);
+  const cols  = suppColumns_(split, box.w);
+  const bands = suppBands_(split.length, box.h);
   const reqs  = [];
   let k = 0;
   split.forEach((rowN, r) => {
     for (let c = 0; c < rowN; c++, k++) {
-      const ids = idFor(k);
+      const ids = pairs[k];
       if (!ids || !ids.img || !ids.txt) continue;
       const cx = cols[r][c], band = bands[r];
-      const nz = sizes[ids.img] || { w: G.photoW, h: G.photoH };
+      const nz = sizes[ids.img] || box;
       reqs.push({ updatePageElementTransform: { objectId: ids.img,
-        transform: { scaleX: G.photoW / nz.w, scaleY: G.photoH / nz.h,
-                     translateX: Math.round(cx - G.photoW / 2), translateY: band.photoY, unit: 'EMU' },
+        transform: { scaleX: box.w / nz.w, scaleY: box.h / nz.h,
+                     translateX: Math.round(cx - box.w / 2), translateY: band.photoY, unit: 'EMU' },
         applyMode: 'ABSOLUTE' } });
+      if (urlFor) {
+        const u = urlFor(k);
+        if (u) reqs.push({ replaceImage: { imageObjectId: ids.img, url: u, imageReplaceMethod: 'CENTER_CROP' } });
+      }
       const tw = (sizes[ids.txt] && sizes[ids.txt].w) ? sizes[ids.txt].w : G.textW;
       reqs.push({ updatePageElementTransform: { objectId: ids.txt,
         transform: { scaleX: G.textSx, scaleY: G.textSy,
@@ -1691,24 +1513,127 @@ function suppPlaceAll_(idFor, count, sizes) {
   return reqs;
 }
 
-// Reposition only — no photo re-upload, no slide duplication. Safe to re-run
-// after tweaking any of the layout constants above.
-function relayoutSupport_() {
+// ── The two generated pages, in Roles-sheet order ────────────────────────────
+// Each member's photo + cell live on a fixed page; only the columns within a
+// page reflow. Elements are never moved between pages, so a member always
+// appears where the deck expects them.
+function suppPages_() {
   const roles = getRoles_().filter(r => r.team.toLowerCase() === 'support leadership');
-  const first = roles.slice(0, SUPP_PER_SLIDE);
-  const rest  = roles.slice(SUPP_PER_SLIDE);
-  const out   = { page1: first.length, page2: rest.length,
-                  split1: suppRowSplit_(first.length), split2: suppRowSplit_(rest.length) };
+  return [
+    { slideId: SUPPORT_SLIDE_ID, members: roles.slice(0, SUPP_PER_SLIDE),
+      img: i => 'suppimg' + i,         txt: i => SUPP_TEXT_1[i] },
+    { slideId: SUPP_SLIDE2,      members: roles.slice(SUPP_PER_SLIDE),
+      img: i => SUPP_SLIDE2 + 'i' + i, txt: i => SUPP_SLIDE2 + 't' + i },
+  ].filter(p => p.members.length);
+}
 
-  const s1 = readSlideElementSizes_(SUPPORT_SLIDE_ID);
-  out.page1Code = slidesBatchUpdate_(suppPlaceAll_(
-    k => ({ img: 'suppimg' + k, txt: SUPP_TEXT_1[k] }), first.length, s1));
+function suppOffscreen_(id) {
+  return { updatePageElementTransform: { objectId: id,
+    transform: { scaleX: 1, scaleY: 1, translateX: GRID_OFFSCREEN, translateY: GRID_OFFSCREEN, unit: 'EMU' },
+    applyMode: 'ABSOLUTE' } };
+}
 
-  if (rest.length) {
-    const s2 = readSlideElementSizes_(SUPP_SLIDE2);
-    out.page2Code = slidesBatchUpdate_(suppPlaceAll_(
-      k => ({ img: SUPP_SLIDE2 + 'i' + k, txt: SUPP_SLIDE2 + 't' + k }), rest.length, s2));
+// Names reach us from Weekly_Submissions and may be ordered differently to the
+// Roles sheet ("Zhao Shu Hui" vs "ShuHui Zhao"), so compare on letters alone
+// AND on sorted letters — the latter makes the comparison order-independent.
+function suppNameKeys_(n) {
+  const flat = String(n).toLowerCase().replace(/[^a-z]/g, '');
+  return [flat, flat.split('').sort().join('')];
+}
+function suppAbsentKeys_(names) {
+  const set = new Set();
+  (names || []).forEach(n => suppNameKeys_(n).forEach(k => set.add(k)));
+  return set;
+}
+
+// Skip/unskip a whole page (used when every member on it is away).
+function suppSkipPage_(slideId, skip) {
+  try {
+    SlidesApp.openById(PRESENTATION_ID).getSlides().forEach(s => {
+      if (s.getObjectId() === slideId && s.isSkipped() !== skip) s.setSkipped(skip);
+    });
+  } catch (e) { logError_('suppSkipPage_', e); }
+}
+
+// ── The one layout entry point ───────────────────────────────────────────────
+// Everything — weekly attendance, manual relayout, restore — goes through here,
+// so the automated path and the manual path can never drift apart.
+//   absentKeys : names to hide (empty Set = everyone shown)
+//   recrop     : re-CENTER_CROP visible photos (only needed if the box ASPECT changed)
+function layoutSupportPages_(absentKeys, recrop) {
+  let photo = null;
+  if (recrop) {
+    const r = suppRoster_();
+    if (r.missing.length) return { error: 'missing photos', missing: r.missing, allFiles: r.allFiles };
+    photo = r.photo;
   }
+
+  const out = { hidden: [], pages: [] };
+  suppPages_().forEach(p => {
+    const sizes = readSlideElementSizes_(p.slideId);
+    const present = [], away = [];
+    p.members.forEach((m, i) => {
+      const isAway = suppNameKeys_(m.member).some(k => absentKeys.has(k));
+      (isAway ? away : present).push(i);
+      if (isAway) out.hidden.push(m.member);
+    });
+
+    const reqs = [];
+    away.forEach(i => { reqs.push(suppOffscreen_(p.img(i))); reqs.push(suppOffscreen_(p.txt(i))); });
+    if (present.length) {
+      const pairs  = present.map(i => ({ img: p.img(i), txt: p.txt(i) }));
+      const urlFor = photo
+        ? (j => shareAndThumbUrl_(photo[suppKey_(p.members[present[j]].member)]))
+        : null;
+      reqs.push.apply(reqs, suppPlaceAll_(pairs, sizes, urlFor));
+    }
+
+    const code = reqs.length ? slidesBatchUpdate_(reqs) : 200;
+    // A page with nobody left on it is skipped rather than shown empty.
+    suppSkipPage_(p.slideId, present.length === 0);
+    out.pages.push({ slide: p.slideId, shown: present.length, away: away.length,
+                     split: present.length ? suppRowSplit_(present.length) : [], code });
+  });
+  return out;
+}
+
+// Hide the given absent members and re-flow the rest. Called by the weekly run.
+function applySupportAttendance_(absentNames) {
+  return layoutSupportPages_(suppAbsentKeys_(absentNames), false);
+}
+
+// Show everyone again, freshly laid out. Also the manual "fix the layout" call.
+function relayoutSupport_(recrop) {
+  return layoutSupportPages_(new Set(), !!recrop);
+}
+
+// Recreate every Support photo from Drive, then place it. Use after replacing or
+// re-cropping headshots in Drive. Images are RECREATED (not replaced) so each
+// element reports its true native size, which the scale maths depends on.
+function rebuildSupportPhotos_() {
+  const { photo, missing, allFiles } = suppRoster_();
+  if (missing.length) return { error: 'missing photos', missing, allFiles };
+
+  const out = { pages: [] };
+  suppPages_().forEach(p => {
+    p.members.forEach((r, i) => {
+      try { slidesBatchUpdate_([{ deleteObject: { objectId: p.img(i) } }]); } catch (e) {}
+    });
+
+    const createCode = slidesBatchUpdate_(p.members.map((r, i) => ({ createImage: {
+      objectId: p.img(i),
+      url: shareAndThumbUrl_(photo[suppKey_(r.member)]),
+      elementProperties: { pageObjectId: p.slideId,
+        transform: { scaleX: 1, scaleY: 1, translateX: 100000, translateY: 100000, unit: 'EMU' } },
+    } })));
+
+    const sizes  = readSlideElementSizes_(p.slideId);
+    const pairs  = p.members.map((r, i) => ({ img: p.img(i), txt: p.txt(i) }));
+    const urlFor = j => shareAndThumbUrl_(photo[suppKey_(p.members[j].member)]);
+    const placeCode = slidesBatchUpdate_(suppPlaceAll_(pairs, sizes, urlFor));
+
+    out.pages.push({ slide: p.slideId, members: p.members.length, createCode, placeCode });
+  });
   return out;
 }
 
@@ -1735,10 +1660,11 @@ function rebuildSupportSlides_() {
     if (reqs.length) slidesBatchUpdate_(reqs);
     report.page1.push(r.member);
   });
+  const pairs1 = first.map((r, i) => ({ img: 'suppimg' + i, txt: SUPP_TEXT_1[i] }));
+  const url1   = j => shareAndThumbUrl_(photo[suppKey_(first[j].member)]);
   const sizes1 = readSlideElementSizes_(SUPPORT_SLIDE_ID);
   report.split1   = suppRowSplit_(first.length);
-  report.pos1Code = slidesBatchUpdate_(suppPlaceAll_(
-    k => ({ img: 'suppimg' + k, txt: SUPP_TEXT_1[k] }), first.length, sizes1));
+  report.pos1Code = slidesBatchUpdate_(suppPlaceAll_(pairs1, sizes1, url1));
 
   // ── Page 2 — a fresh duplicate of page 1, trimmed to the overflow members ──
   const rest = roles.slice(SUPP_PER_SLIDE);
@@ -1761,70 +1687,23 @@ function rebuildSupportSlides_() {
       });
     }
 
-    // Swap in the overflow members' text + photos.
+    // Swap in the overflow members' text. Photos are re-cropped inside the
+    // placement pass below, so CENTER_CROP measures the FINAL box, not the
+    // inherited one.
     const cur2 = readDeckBoxText_();
-    const imgReqs = [];
     rest.forEach((r, i) => {
       const t = SUPP_SLIDE2 + 't' + i;
       const reqs = styledCellReplace_(t, String(cur2[t] || ''), r.role, r.member, r.trade);
       if (reqs.length) slidesBatchUpdate_(reqs);
-      imgReqs.push({ replaceImage: { imageObjectId: SUPP_SLIDE2 + 'i' + i,
-        url: shareAndThumbUrl_(photo[suppKey_(r.member)]), imageReplaceMethod: 'CENTER_CROP' } });
       report.page2.push(r.member);
     });
-    report.imgCode = slidesBatchUpdate_(imgReqs);
 
+    const pairs2 = rest.map((r, i) => ({ img: SUPP_SLIDE2 + 'i' + i, txt: SUPP_SLIDE2 + 't' + i }));
+    const url2   = j => shareAndThumbUrl_(photo[suppKey_(rest[j].member)]);
     const sizes2 = readSlideElementSizes_(SUPP_SLIDE2);
     report.split2   = suppRowSplit_(rest.length);
-    report.pos2Code = slidesBatchUpdate_(suppPlaceAll_(
-      k => ({ img: SUPP_SLIDE2 + 'i' + k, txt: SUPP_SLIDE2 + 't' + k }), rest.length, sizes2));
+    report.pos2Code = slidesBatchUpdate_(suppPlaceAll_(pairs2, sizes2, url2));
   }
-
-  // ── Retire the hand-made overflow slides (content-checked first) ──
-  const dels = [];
-  SUPP_OLD_OVERFLOW.forEach(id => {
-    if (pageHasText_(id, 'Support Leadership')) { dels.push({ deleteObject: { objectId: id } }); report.removed.push(id); }
-  });
-  if (dels.length) report.delCode = slidesBatchUpdate_(dels);
-
-  return report;
-}
-
-// Does a slide page's combined text contain the given phrase?
-function pageHasText_(slideId, needle) {
-  const url  = 'https://slides.googleapis.com/v1/presentations/' + PRESENTATION_ID +
-               '/pages/' + slideId + '?fields=' + encodeURIComponent('pageElements(shape(text(textElements(textRun(content)))))');
-  const resp = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
-  if (resp.getResponseCode() !== 200) return false;
-  let all = '';
-  (JSON.parse(resp.getContentText()).pageElements || []).forEach(pe => {
-    if (pe.shape && pe.shape.text && pe.shape.text.textElements) all += pe.shape.text.textElements.map(te => te.textRun ? te.textRun.content : '').join('');
-  });
-  return all.toLowerCase().includes(String(needle).toLowerCase());
-}
-
-// STEP 3 — finish: unhide the rebuilt slide 14 and delete the 3 old variants.
-// Each variant is only deleted if it really contains "Support Leadership Team".
-const SUPPORT_VARIANT_SLIDES = { 16: 'g3f56d718e25_0_0', 17: 'g3f22d44700a_1_0', 18: 'g3d80786bc1f_6_81' };
-
-function cleanupSupportVariants_() {
-  const report = { unhid14: false, deleted: [], skipped: [] };
-
-  // Unhide slide 14 (the rebuilt grid) so it shows in the deck.
-  try {
-    const pres = SlidesApp.openById(PRESENTATION_ID);
-    pres.getSlides().forEach(s => {
-      if (s.getObjectId() === SUPPORT_SLIDE_ID) { if (s.isSkipped()) { s.setSkipped(false); report.unhid14 = true; } }
-    });
-  } catch (e) { report.unhideError = e.message; }
-
-  // Delete the old variants — verified by content first.
-  const delReqs = [];
-  Object.entries(SUPPORT_VARIANT_SLIDES).forEach(([n, id]) => {
-    if (pageHasText_(id, 'Support Leadership')) { delReqs.push({ deleteObject: { objectId: id } }); report.deleted.push(n); }
-    else report.skipped.push(n + ' (no Support Leadership text — left alone)');
-  });
-  if (delReqs.length) report.delCode = slidesBatchUpdate_(delReqs);
 
   return report;
 }
@@ -1911,7 +1790,7 @@ function onOpen() {
     .addItem('🔄 Sync Member Rows',                         'syncMemberRows')
     .addItem('📊 Refresh Dashboard',                        'refreshDashboard')
     .addSeparator()
-    .addItem('🎞️  Setup Slide Map Sheet',                   'setupSlideMapSheet')
+    .addItem('🎞️  Setup Intro Slides Sheet',                'setupSlideMapSheet')
     .addItem('🖼️  Update Slides from Attendance',            'updateSlidesFromAttendance')
     .addItem('↩️  Restore All Slides',                       'restoreAllSlides')
     .addItem('🔁 Reset Next Presenters (all present)',      'resetNextPresentersAllPresent')
@@ -1922,32 +1801,6 @@ function onOpen() {
     .addSeparator()
     .addItem('👥 Setup Roles Sheet (teams/roles)',          'setupRolesSheet')
     .addToUi();
-}
-
-// ── Highlight duplicate member rows in Weekly_Submissions ─────────────────────
-function highlightDuplicateSubmissions() {
-  const ss    = SpreadsheetApp.openById(SHEET_ID);
-  const sheet = ss.getSheetByName(SN.SUBMISSIONS);
-
-  const existing = sheet.getConditionalFormatRules().filter(r => {
-    const crit = r.getBooleanCondition();
-    return !(crit && crit.getCriteriaType() === SpreadsheetApp.BooleanCriteria.CUSTOM_FORMULA &&
-             crit.getCriteriaValues()[0].toString().includes('COUNTIF'));
-  });
-  sheet.setConditionalFormatRules(existing);
-
-  const range = sheet.getRange('A2:N1000');
-  const rule  = SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied('=COUNTIF($C:$C,$C2)>1')
-    .setBackground('#FFE0B2')
-    .setFontColor('#7B3F00')
-    .setRanges([range])
-    .build();
-
-  existing.push(rule);
-  sheet.setConditionalFormatRules(existing);
-
-  SpreadsheetApp.getUi().alert('✅ Duplicate highlighting applied.');
 }
 
 // ── Clear Weekly Submissions ──────────────────────────────────────────────────
@@ -2110,61 +1963,16 @@ function sendMissingEmail_(missing) {
 //       ABSENT with SUB  → slide kept in place (sub presents)
 //       PRESENT          → no change
 //
-// ── Support Team element registry ────────────────────────────────────────────
-// Each entry stores the Google Slides objectId and original transform values
-// for both the profile photo (image) and the text box (shape).
-// These are used to restore, hide, and reposition elements each week.
-//
-// Layout in original 5-member state:
-//   Row 1 (top):    Kevin | Iskons | Benjamin
-//   Row 2 (bottom): Zef   | ShuHui
+// ── Support Team ─────────────────────────────────────────────────────────────
+// The Support Leadership pages are fully generated (see suppPages_ /
+// layoutSupportPages_ above): membership comes from the Roles sheet, positions
+// are computed, and absence is handled by re-flowing the remaining members.
+// The old hand-maintained element registry that used to live here is gone — it
+// pinned photo objectIds that the rebuild deleted, so every batch containing it
+// failed silently and no attendance change reached the slide.
 
-// Fallback defaults — used when the Slide_Map sheet is missing/empty.
-// Edit the Slide_Map sheet (BNI Empower menu → Setup Slide Map Sheet) to override these live.
-const SUPPORT_TEAM_ORDER_DEFAULT = [
-  'kevin phua',
-  'iskons',
-  'benjamin ng',
-  'zefirelli noordin',
-  'zhao shuhui',
-];
-
-const SUPPORT_TEAM_ELEMENTS_DEFAULT = {
-  'kevin phua': {
-    shape: { id: 'g3da1b38dbc6_0_20', tx: 2402087.5,  ty: 3050787.5,  sx: 0.7142, sy: 0.3891, w: 3000000 },
-    image: { id: 'g3da1b38dbc6_0_24', tx: 2655612.49, ty: 1150575.0,  sx: 81.7787, sy: 92.5213, w: 20000  },
-  },
-  'iskons': {
-    shape: { id: 'g3da1b38dbc6_0_21', tx: 5019400.0,  ty: 3050791.65, sx: 0.6429, sy: 0.3244, w: 3000000 },
-    image: { id: 'g3da1b38dbc6_0_25', tx: 5165967.5,  ty: 1150562.5,  sx: 31.9447, sy: 36.1413, w: 51200  },
-  },
-  'benjamin ng': {
-    shape: { id: 'g3da1b38dbc6_0_33', tx: 7167012.5,  ty: 3050787.5,  sx: 0.8743, sy: 0.3244, w: 3000000 },
-    image: { id: 'g3da1b38dbc6_0_35', tx: 7676312.50, ty: 1150575.0,  sx: 31.334,  sy: 36.1411, w: 51200  },
-  },
-  'zefirelli noordin': {
-    shape: { id: 'g3d3588e3aa5_0_19', tx: 3983037.5,  ty: 5959142.52, sx: 0.6429, sy: 0.2872, w: 3000000 },
-    image: { id: 'g3d3588e3aa5_0_21', tx: 4129605.0,  ty: 4073798.0,  sx: 67.8656, sy: 61.4259, w: 24100  },
-  },
-  'zhao shuhui': {
-    shape: { id: 'g3d3588e3aa5_0_20', tx: 6280237.5,  ty: 5959150.0,  sx: 0.6429, sy: 0.2872, w: 3000000 },
-    image: { id: 'g3d3588e3aa5_0_22', tx: 6426805.0,  ty: 4087261.0,  sx: 76.787,  sy: 86.8758, w: 21300  },
-  },
-};
-
-// Row vertical anchors (top-y in EMU) for images and text boxes
-const ROW1_IMG_Y   = 1150575;
-const ROW1_SHAPE_Y = 3050788;
-const ROW2_IMG_Y   = 4073798;
-const ROW2_SHAPE_Y = 5959143;
-
-// Slide canvas & margins (EMU)
-const SLIDE_W       = 12192000;
-const MARGIN_L      = 1200000;
-const MARGIN_R      = 1200000;
-const USABLE_W      = SLIDE_W - MARGIN_L - MARGIN_R;
-const OFFSCREEN_X   = 99000000;
-const OFFSCREEN_Y   = 99000000;
+// Slide canvas (EMU)
+const SLIDE_W = 12192000;
 
 // Member 30-sec intro slide objectIds
 const MEMBER_INTRO_SLIDES_DEFAULT = {
@@ -2203,58 +2011,19 @@ const MEMBER_INTRO_SLIDES_DEFAULT = {
   'iskons':                'g3d037e0c29a_0_214',
 };
 
-// Name aliases → canonical key in SUPPORT_TEAM_ELEMENTS
-const SUPPORT_TEAM_ALIASES = {
-  'shuhui zhao':   'zhao shuhui',
-  'shu hui zhao':  'zhao shuhui',
-  'zhao shu hui':  'zhao shuhui',
-  'shuhui':        'zhao shuhui',
-  'zef':           'zefirelli noordin',
-  'wee khai':      'wee khai pang',
-  'pang wee khai': 'wee khai pang',
-};
-
-// ── Sheet-driven slide map (falls back to the *_DEFAULT constants above) ──────
-// The Slide_Map sheet lets officers adjust which box each Support Team member
-// occupies — and its exact position — without editing this code.
+// ── Sheet-driven intro-slide map (falls back to the constants above) ─────────
+// Intro_Slides lets officers correct a member's 30-sec slide ID without code.
+// (The old Slide_Map tab is gone — Support Team box positions are computed now,
+// so there is nothing left for it to override.)
 let _slideMapCache = null;
 
 function readSlideMap_() {
   if (_slideMapCache) return _slideMapCache;
 
-  const result = {
-    order:    SUPPORT_TEAM_ORDER_DEFAULT.slice(),
-    elements: SUPPORT_TEAM_ELEMENTS_DEFAULT,
-    intros:   MEMBER_INTRO_SLIDES_DEFAULT,
-  };
+  const result = { intros: MEMBER_INTRO_SLIDES_DEFAULT };
 
   try {
     const ss = SpreadsheetApp.openById(SHEET_ID);
-
-    // Support Team box map
-    const mapSheet = ss.getSheetByName(SN.SLIDE_MAP);
-    if (mapSheet && mapSheet.getLastRow() >= 2) {
-      // Columns: Order | Member | ShapeID | ShapeTX | ShapeTY | ShapeSX | ShapeSY | ShapeW
-      //                          | ImageID | ImageTX | ImageTY | ImageSX | ImageSY | ImageW
-      const rows  = mapSheet.getRange(2, 1, mapSheet.getLastRow() - 1, 14).getValues();
-      const order = [];
-      const elements = {};
-      const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
-      rows.forEach(r => {
-        const member = String(r[1]).trim().toLowerCase();
-        const shapeId = String(r[2]).trim();
-        const imageId = String(r[8]).trim();
-        if (!member || !shapeId || !imageId) return;   // skip incomplete rows
-        order.push(member);
-        elements[member] = {
-          shape: { id: shapeId, tx: num(r[3]), ty: num(r[4]), sx: num(r[5]), sy: num(r[6]), w: num(r[7]) },
-          image: { id: imageId, tx: num(r[9]), ty: num(r[10]), sx: num(r[11]), sy: num(r[12]), w: num(r[13]) },
-        };
-      });
-      if (order.length) { result.order = order; result.elements = elements; }
-    }
-
-    // 30-sec intro slide IDs
     const introSheet = ss.getSheetByName(SN.INTRO_SLIDES);
     if (introSheet && introSheet.getLastRow() >= 2) {
       const rows   = introSheet.getRange(2, 1, introSheet.getLastRow() - 1, 2).getValues();
@@ -2274,54 +2043,17 @@ function readSlideMap_() {
   return result;
 }
 
-function getSupportTeamOrder_()    { return readSlideMap_().order; }
-function getSupportTeamElements_()  { return readSlideMap_().elements; }
-function getMemberIntroSlides_()    { return readSlideMap_().intros; }
+function getMemberIntroSlides_() { return readSlideMap_().intros; }
 
 /**
- * Creates (or refreshes) the Slide_Map and Intro_Slides tabs, seeded with the
- * current hardcoded defaults. After this runs, officers edit these sheets to
- * change which box a member sits in — no code editing needed. Existing edits
- * are preserved: the sheet is only seeded when empty.
- * Menu: BNI Empower → 🎞️ Setup Slide Map Sheet
+ * Creates (or refreshes) the Intro_Slides tab, seeded with the current
+ * defaults. Existing edits are preserved: it is only seeded when empty.
+ * Menu: BNI Empower → 🎞️ Setup Intro Slides Sheet
  */
 function setupSlideMapSheet() {
   const ss = SpreadsheetApp.openById(SHEET_ID);
   let ui; try { ui = SpreadsheetApp.getUi(); } catch (_) { ui = null; }
   const notes = [];
-
-  // ── Slide_Map (Support Team boxes) ──
-  let mapSheet = ss.getSheetByName(SN.SLIDE_MAP);
-  if (!mapSheet) mapSheet = ss.insertSheet(SN.SLIDE_MAP);
-
-  const MAP_HEADERS = [
-    'Order', 'Member (lowercase key)',
-    'Shape ID', 'Shape TX', 'Shape TY', 'Shape SX', 'Shape SY', 'Shape W',
-    'Image ID', 'Image TX', 'Image TY', 'Image SX', 'Image SY', 'Image W',
-  ];
-  mapSheet.getRange(1, 1, 1, MAP_HEADERS.length)
-    .setValues([MAP_HEADERS])
-    .setBackground('#1a5276').setFontColor('#ffffff')
-    .setFontWeight('bold').setHorizontalAlignment('center');
-  mapSheet.setFrozenRows(1);
-  [55, 190, 165, 100, 100, 80, 80, 90, 165, 100, 100, 80, 80, 90]
-    .forEach((w, i) => mapSheet.setColumnWidth(i + 1, w));
-
-  if (mapSheet.getLastRow() < 2) {
-    const rows = SUPPORT_TEAM_ORDER_DEFAULT.map((member, i) => {
-      const e = SUPPORT_TEAM_ELEMENTS_DEFAULT[member] || { shape: {}, image: {} };
-      const s = e.shape || {}, img = e.image || {};
-      return [
-        i + 1, member,
-        s.id || '', s.tx || '', s.ty || '', s.sx || '', s.sy || '', s.w || '',
-        img.id || '', img.tx || '', img.ty || '', img.sx || '', img.sy || '', img.w || '',
-      ];
-    });
-    if (rows.length) mapSheet.getRange(2, 1, rows.length, MAP_HEADERS.length).setValues(rows);
-    notes.push('Slide_Map seeded with ' + rows.length + ' member box(es).');
-  } else {
-    notes.push('Slide_Map already has data — left untouched.');
-  }
 
   // ── Intro_Slides (30-sec intro slide IDs) ──
   let introSheet = ss.getSheetByName(SN.INTRO_SLIDES);
@@ -2344,32 +2076,8 @@ function setupSlideMapSheet() {
   }
 
   _slideMapCache = null;  // force re-read on next slide update
-  if (ui) ui.alert('✅ Slide map ready.\n\n' + notes.join('\n') +
-    '\n\nEdit these tabs any time; changes apply on the next slide update.');
-}
-
-// ── Grid helpers ──────────────────────────────────────────────────────────────
-function computeColumnCentres_(n) {
-  if (n === 0) return [];
-  const slotW = USABLE_W / n;
-  return Array.from({ length: n }, (_, i) => Math.round(MARGIN_L + slotW * i + slotW / 2));
-}
-
-/**
- * Returns array of { row, cx } objects for n visible profiles.
- *   n ≤ 4  → single row
- *   n > 4  → two rows; top row gets ceil(n/2)
- */
-function computeGrid_(n) {
-  if (n <= 4) {
-    return computeColumnCentres_(n).map(cx => ({ row: 1, cx }));
-  }
-  const topCount = Math.ceil(n / 2);
-  const botCount = n - topCount;
-  return [
-    ...computeColumnCentres_(topCount).map(cx => ({ row: 1, cx })),
-    ...computeColumnCentres_(botCount).map(cx => ({ row: 2, cx })),
-  ];
+  if (ui) ui.alert('✅ Intro slide map ready.\n\n' + notes.join('\n') +
+    '\n\nEdit this tab any time; changes apply on the next slide update.');
 }
 
 // ── Read attendance from Weekly_Submissions ───────────────────────────────────
@@ -2410,32 +2118,24 @@ function updateSlidesFromAttendance() {
   }
 
   // Determine absent members
-  const absentFromSupport = new Set();   // absent from Slide 15 (even with sub)
-  const trulyAbsent       = new Set();   // absent with NO sub (30-sec slide moves)
-  const hasSubSet         = new Set();   // absent but has sub (30-sec slide stays)
+  const absentNames = [];                // every absent member, any team
+  const trulyAbsent = new Set();         // absent with NO sub (30-sec slide moves)
+  const hasSubSet   = new Set();         // absent but has sub (30-sec slide stays)
 
   Object.entries(attendance).forEach(([normName, info]) => {
     if (info.attending !== 'no') return;
-
-    // Resolve alias for Support Team check
-    const resolved = SUPPORT_TEAM_ALIASES[normName] || normName;
-    if (getSupportTeamElements_()[resolved]) {
-      absentFromSupport.add(resolved);
-    }
-
-    if (info.hasSub) {
-      hasSubSet.add(normName);
-    } else {
-      trulyAbsent.add(normName);
-    }
+    absentNames.push(info.originalName || normName);
+    if (info.hasSub) hasSubSet.add(normName); else trulyAbsent.add(normName);
   });
 
-  Logger.log('Absent from Support Team slide: ' + [...absentFromSupport].join(', '));
+  Logger.log('Absent: ' + absentNames.join(', '));
   Logger.log('Truly absent (no sub): ' + [...trulyAbsent].join(', '));
   Logger.log('Absent with sub: ' + [...hasSubSet].join(', '));
 
-  // Update Slide 15
-  updateSupportTeamSlide_(absentFromSupport);
+  // Support Leadership pages — hide whoever is away, re-flow the rest.
+  // Names that aren't on that team are simply ignored by the matcher.
+  const supp = applySupportAttendance_(absentNames);
+  Logger.log('Support pages: ' + JSON.stringify(supp));
 
   // Update 30-sec intro slides
   updateIntroSlides_(trulyAbsent);
@@ -2443,105 +2143,17 @@ function updateSlidesFromAttendance() {
   // Show confirmation if run manually from menu
   try {
     const ui = SpreadsheetApp.getUi();
-    const absentNames = [...absentFromSupport].map(n => n.split(' ').map(w => w[0].toUpperCase() + w.slice(1)).join(' '));
-    const movedNames  = [...trulyAbsent].map(n => n.split(' ').map(w => w[0].toUpperCase() + w.slice(1)).join(' '));
+    const movedNames = [...trulyAbsent].map(n => n.split(' ').map(w => w[0].toUpperCase() + w.slice(1)).join(' '));
     ui.alert(
       '✅ Slides updated!',
-      (absentNames.length ? 'Hidden from Support Team slide: ' + absentNames.join(', ') + '\n' : 'No Support Team changes.\n') +
-      (movedNames.length  ? 'Intro slides moved to end: ' + movedNames.join(', ') : 'No intro slides moved.'),
+      (supp.hidden && supp.hidden.length
+        ? 'Hidden from Support Leadership: ' + supp.hidden.join(', ') + '\n'
+        : 'No Support Leadership changes.\n') +
+      (movedNames.length ? 'Intro slides moved to end: ' + movedNames.join(', ') : 'No intro slides moved.'),
       ui.ButtonSet.OK
     );
   } catch(_) {
     // Running from trigger — no UI available, that's fine
-  }
-}
-
-// ── Update Support Team slide (Slide 15) ─────────────────────────────────────
-function updateSupportTeamSlide_(absentFromSupport) {
-  const ELEMENTS = getSupportTeamElements_();
-  const visible = getSupportTeamOrder_().filter(m => !absentFromSupport.has(m));
-  const grid    = computeGrid_(visible.length);
-  const requests = [];
-
-  // Hide absent members
-  absentFromSupport.forEach(member => {
-    const els = ELEMENTS[member];
-    if (!els) return;
-    // White text (invisible on white background)
-    requests.push({
-      updateTextStyle: {
-        objectId:  els.shape.id,
-        style:     { foregroundColor: { opaqueColor: { rgbColor: { red: 1, green: 1, blue: 1 } } } },
-        textRange: { type: 'ALL' },
-        fields:    'foregroundColor',
-      }
-    });
-    // Move image off-screen
-    requests.push({
-      updatePageElementTransform: {
-        objectId:  els.image.id,
-        transform: { scaleX: 1, scaleY: 1, translateX: OFFSCREEN_X, translateY: OFFSCREEN_Y, unit: 'EMU' },
-        applyMode: 'ABSOLUTE',
-      }
-    });
-  });
-
-  // Restore and reposition visible members
-  visible.forEach((member, i) => {
-    const { row, cx } = grid[i];
-    const els = ELEMENTS[member];
-    if (!els) return;
-
-    const imgY  = row === 1 ? ROW1_IMG_Y   : ROW2_IMG_Y;
-    const shpY  = row === 1 ? ROW1_SHAPE_Y : ROW2_SHAPE_Y;
-    const imgTx = cx - els.image.w / 2;
-    const shpTx = cx - (els.shape.w * els.shape.sx) / 2;
-
-    // Restore text colour to black
-    requests.push({
-      updateTextStyle: {
-        objectId:  els.shape.id,
-        style:     { foregroundColor: { opaqueColor: { rgbColor: { red: 0, green: 0, blue: 0 } } } },
-        textRange: { type: 'ALL' },
-        fields:    'foregroundColor',
-      }
-    });
-    // Reposition text box
-    requests.push({
-      updatePageElementTransform: {
-        objectId:  els.shape.id,
-        transform: { scaleX: els.shape.sx, scaleY: els.shape.sy, translateX: shpTx, translateY: shpY, unit: 'EMU' },
-        applyMode: 'ABSOLUTE',
-      }
-    });
-    // Reposition image
-    requests.push({
-      updatePageElementTransform: {
-        objectId:  els.image.id,
-        transform: { scaleX: els.image.sx, scaleY: els.image.sy, translateX: imgTx, translateY: imgY, unit: 'EMU' },
-        applyMode: 'ABSOLUTE',
-      }
-    });
-  });
-
-  if (requests.length === 0) {
-    Logger.log('updateSupportTeamSlide_: no changes needed.');
-    return;
-  }
-
-  const url  = 'https://slides.googleapis.com/v1/presentations/' + PRESENTATION_ID + ':batchUpdate';
-  const resp = UrlFetchApp.fetch(url, {
-    method:      'post',
-    contentType: 'application/json',
-    headers:     { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
-    payload:     JSON.stringify({ requests }),
-    muteHttpExceptions: true,
-  });
-
-  if (resp.getResponseCode() !== 200) {
-    Logger.log('updateSupportTeamSlide_ ERROR: ' + resp.getContentText());
-  } else {
-    Logger.log('updateSupportTeamSlide_: ' + requests.length + ' operations applied. Visible: ' + visible.join(', '));
   }
 }
 
@@ -2620,66 +2232,26 @@ function updateIntroSlides_(trulyAbsent) {
   });
 }
 
-// ── Restore all slides to original state ─────────────────────────────────────
+// ── Restore all slides to the everyone-present state ─────────────────────────
 /**
- * Restores all 5 Support Team members to their original positions.
- * Run this at the start of a new week before applying fresh attendance.
- * Also available from the BNI Empower menu → "Restore All Slides".
+ * Puts every Support Leadership member back on their page and re-flows the
+ * layout. Run at the start of a new week before applying fresh attendance.
+ * Menu: BNI Empower → "Restore All Slides".
  */
 function restoreAllSlides() {
-  const requests = [];
-  const ELEMENTS = getSupportTeamElements_();
-
-  getSupportTeamOrder_().forEach(member => {
-    const els = ELEMENTS[member];
-    if (!els) return;
-
-    // Restore text colour to black
-    requests.push({
-      updateTextStyle: {
-        objectId:  els.shape.id,
-        style:     { foregroundColor: { opaqueColor: { rgbColor: { red: 0, green: 0, blue: 0 } } } },
-        textRange: { type: 'ALL' },
-        fields:    'foregroundColor',
-      }
-    });
-    // Restore image to original position
-    requests.push({
-      updatePageElementTransform: {
-        objectId:  els.image.id,
-        transform: { scaleX: els.image.sx, scaleY: els.image.sy, translateX: els.image.tx, translateY: els.image.ty, unit: 'EMU' },
-        applyMode: 'ABSOLUTE',
-      }
-    });
-    // Restore shape to original position
-    requests.push({
-      updatePageElementTransform: {
-        objectId:  els.shape.id,
-        transform: { scaleX: els.shape.sx, scaleY: els.shape.sy, translateX: els.shape.tx, translateY: els.shape.ty, unit: 'EMU' },
-        applyMode: 'ABSOLUTE',
-      }
-    });
-  });
-
-  const url  = 'https://slides.googleapis.com/v1/presentations/' + PRESENTATION_ID + ':batchUpdate';
-  const resp = UrlFetchApp.fetch(url, {
-    method:      'post',
-    contentType: 'application/json',
-    headers:     { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
-    payload:     JSON.stringify({ requests }),
-    muteHttpExceptions: true,
-  });
+  const r  = relayoutSupport_(false);
+  const ok = !r.error && (r.pages || []).every(p => p.code === 200);
+  const summary = r.error
+    ? '❌ ' + r.error + (r.missing ? ': ' + r.missing.join(', ') : '')
+    : (r.pages || []).map(p => p.slide + ': ' + p.shown + ' shown').join('\n');
 
   try {
-    const ui = SpreadsheetApp.getUi();
-    if (resp.getResponseCode() === 200) {
-      ui.alert('✅ All Support Team slides restored to original layout.');
-    } else {
-      ui.alert('❌ Error restoring slides: ' + resp.getContentText());
-    }
-  } catch(_) {
-    Logger.log('restoreAllSlides: ' + (resp.getResponseCode() === 200 ? 'success' : resp.getContentText()));
+    SpreadsheetApp.getUi().alert(
+      (ok ? '✅ Support Leadership restored.\n\n' : '⚠️ Restore had problems.\n\n') + summary);
+  } catch (_) {
+    Logger.log('restoreAllSlides: ' + summary);
   }
+  return r;
 }
 
 // ── Weekly trigger function (Sunday 9pm) ──────────────────────────────────────
