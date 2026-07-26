@@ -92,6 +92,10 @@ function doGet(e) {
                                             ? jsonOk_(setupRolesSheet())
                                             : jsonErr_('Invalid PIN');
   if (action === 'getRoles')             return jsonOk_({ roles: getRoles_() });
+  if (action === 'getCoreValueOptions')  return getCoreValueOptions_();
+  if (action === 'testCoreValue')        return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(saveCoreValue_({ member: e.parameter.member || '', coreValue: e.parameter.value || '' }))
+                                            : jsonErr_('Invalid PIN');
   if (action === 'renderCommittee')      return (e.parameter.pin === ADMIN_PIN)
                                             ? jsonOk_(renderCommitteeText_())
                                             : jsonErr_('Invalid PIN');
@@ -292,6 +296,11 @@ function doPost(e) {
     if (data.formType === 'saveRoles') {
       if (data.pin !== ADMIN_PIN) return jsonErr_('Invalid PIN');
       return jsonOk_(saveRoles_(data));
+    }
+
+    if (data.formType === 'saveCoreValue') {
+      if (data.pin !== ADMIN_PIN) return jsonErr_('Invalid PIN');
+      return jsonOk_(saveCoreValue_(data));
     }
 
     writeSubmission_(data);
@@ -1752,6 +1761,98 @@ function updateMeetingDate() {
   const r = updateTitleDate_();
   try { SpreadsheetApp.getUi().alert('📅 Title date set to: ' + r.date + (r.changed ? '' : ' (already current)')); } catch (_) {}
   return r;
+}
+
+// ── Slide 19 — Core Value Sharing presenter (Hub-driven) ─────────────────────
+// The Hub "Core Value Sharing" page lets the MC pick the presenter + which of
+// the 7 BNI core values they're sharing. This writes name+trade, the core value
+// in the centre box, and swaps the photo — all on slide 19. Self-healing: it
+// replaces whatever is there now, so it can be re-run any week.
+const CORE_VALUE_SLIDE     = 'g3e794ddfa92_1_0';   // slide 19
+const CORE_VALUE_NAME_BOX  = 'g3e794ddfa92_1_4';   // "Name\nTrade"
+const CORE_VALUE_QUOTE_BOX = 'g3e794ddfa92_1_5';   // centre box → the core value
+const CORE_VALUE_PHOTO     = 'g3f56d718e25_0_28';  // presenter photo
+const CORE_VALUES = ['Givers Gain', 'Lifelong Learning', 'Traditions + Innovation',
+                     'Positive Attitude', 'Building Relationships', 'Accountability', 'Recognition'];
+
+// Replace a box's lines in place, keeping each line's own styling. newLines[i]
+// replaces the i-th line; a blank/identical new line is skipped (old kept).
+// Edits run last→first so earlier offsets stay valid.
+function setCellLinesInPlace_(cellId, rawTmpl, newLines) {
+  const raw  = String(rawTmpl).replace(/[\n\r\v\f]+$/, '');
+  const segs = [];
+  let last = 0, m;
+  const re = /[\n\r\v\f]+/g;
+  while ((m = re.exec(raw)) !== null) { segs.push({ text: raw.slice(last, m.index), start: last }); last = m.index + m[0].length; }
+  segs.push({ text: raw.slice(last), start: last });
+
+  const reqs = [];
+  for (let i = Math.min(segs.length, newLines.length) - 1; i >= 0; i--) {
+    const seg = segs[i], neu = String(newLines[i] == null ? '' : newLines[i]).trim();
+    if (!seg.text || !neu || seg.text === neu) continue;
+    reqs.push({ insertText: { objectId: cellId, insertionIndex: seg.start, text: neu } });
+    reqs.push({ deleteText: { objectId: cellId, textRange: {
+      type: 'FIXED_RANGE', startIndex: seg.start + neu.length, endIndex: seg.start + neu.length + seg.text.length } } });
+  }
+  return reqs;
+}
+
+// Find a member's headshot fileId in the Headshots folder (name-token match).
+// Works for ANY member, not only those in the Roles sheet.
+function findHeadshotFileId_(name) {
+  const folder = DriveApp.getFolderById(HEADSHOTS_FOLDER_ID);
+  const files  = [];
+  const it     = folder.getFiles();
+  while (it.hasNext()) { const f = it.next(); files.push({ id: f.getId(), name: f.getName() }); }
+
+  const tokens  = s => String(s).toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(Boolean);
+  const letters = s => String(s).toLowerCase().replace(/\.[a-z0-9]+$/, '').replace(/[^a-z]/g, '');
+  const sortL   = s => letters(s).split('').sort().join('');
+  const mtok = tokens(name), mL = letters(name);
+
+  let best = null, bestScore = 0;
+  files.forEach(f => {
+    const ftok = tokens(f.name), fL = letters(f.name);
+    let score = 0;
+    const overlap = mtok.filter(t => ftok.includes(t)).length;
+    if (overlap >= Math.min(2, mtok.length))     score = 4;   // both name tokens present
+    else if (fL.includes(mL) || mL.includes(fL)) score = 3;   // substring
+    else if (sortL(f.name) === sortL(name))      score = 2;   // same letters, any order
+    if (score > bestScore) { bestScore = score; best = f; }
+  });
+  return bestScore >= 2 ? best.id : null;
+}
+
+// Serve the 7 core values + roster to the Hub page.
+function getCoreValueOptions_() {
+  return jsonOk_({ coreValues: CORE_VALUES, members: getRoster_() });
+}
+
+// Write the Core Value Sharing presenter onto slide 19.
+function saveCoreValue_(data) {
+  const member    = String(data.member || '').trim();
+  const coreValue = String(data.coreValue || '').trim();
+  if (!member)    return { error: 'no member selected' };
+  if (!coreValue) return { error: 'no core value selected' };
+
+  const trade = tradeByMember_()[member.toLowerCase()] || '';
+  const cur   = readDeckBoxText_();
+
+  const reqs = []
+    .concat(setCellLinesInPlace_(CORE_VALUE_NAME_BOX,  String(cur[CORE_VALUE_NAME_BOX]  || ''), [member, trade]))
+    .concat(setCellLinesInPlace_(CORE_VALUE_QUOTE_BOX, String(cur[CORE_VALUE_QUOTE_BOX] || ''), [coreValue]));
+  const textCode = reqs.length ? slidesBatchUpdate_(reqs) : 200;
+
+  let photoCode = null, photoNote = '';
+  const fileId = findHeadshotFileId_(member);
+  if (fileId) {
+    photoCode = slidesBatchUpdate_([{ replaceImage: {
+      imageObjectId: CORE_VALUE_PHOTO, url: shareAndThumbUrl_(fileId), imageReplaceMethod: 'CENTER_CROP' } }]);
+  } else {
+    photoNote = 'no headshot in Drive for "' + member + '" — photo left unchanged';
+  }
+
+  return { ok: true, member, trade, coreValue, textCode, photoCode, photoNote };
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────────

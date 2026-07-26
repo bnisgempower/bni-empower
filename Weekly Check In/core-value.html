@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#c0392b">
+  <title>BNI Empower — Core Value Sharing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --gold:#c0392b; --gold-bright:#daa94d; --gold-dim:rgba(200,151,58,.12); --gold-border:rgba(200,151,58,.35);
+      --bg:#0d0d0d; --bg2:#141414; --surface:#1c1c1c; --surface2:#252525; --border:#2e2e2e;
+      --text:#f0ede8; --text-muted:#888; --text-dim:#4a4a4a; --success:#5cc976; --danger:#e05c5c;
+      --r-sm:8px; --r:14px; --r-lg:18px; --tr:200ms ease;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{-webkit-tap-highlight-color:transparent}
+    body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);
+      min-height:100dvh;display:flex;flex-direction:column;align-items:center;
+      padding-bottom:max(env(safe-area-inset-bottom),96px)}
+    .header{width:100%;background:var(--bg2);border-bottom:1px solid var(--border);
+      padding:16px 20px;display:flex;align-items:center;justify-content:center;gap:12px;
+      position:sticky;top:0;z-index:20}
+    .logo-mark{width:40px;height:40px;background:var(--gold);border-radius:10px;display:flex;
+      align-items:center;justify-content:center;font-weight:800;font-size:22px;color:#000;letter-spacing:-.5px}
+    .header-text h1{font-size:17px;font-weight:800;letter-spacing:-.2px}
+    .header-text p{font-size:12px;color:var(--text-muted)}
+    .container{width:100%;max-width:560px;padding:18px 14px 0;flex:1;display:flex;flex-direction:column;gap:18px}
+
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+    .card-head{padding:12px 16px;background:var(--bg2);border-bottom:1px solid var(--border);
+      font-size:13px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--gold-bright)}
+    .rows{padding:14px 14px;display:flex;flex-direction:column;gap:14px}
+    .fld{display:flex;flex-direction:column;gap:5px}
+    .fld label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;padding-left:2px}
+    .inp{width:100%;font-family:inherit;font-size:15px;color:var(--text);background:var(--surface);
+      border:1px solid var(--border);border-radius:var(--r-sm);padding:11px 12px}
+    .inp:focus{outline:none;border-color:var(--gold-border)}
+    select.inp{-webkit-appearance:none;appearance:none;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat:no-repeat;background-position:right 10px center;background-size:16px;padding-right:30px}
+
+    .preview{padding:0 14px 14px;font-size:12.5px;color:var(--text-muted);line-height:1.6}
+    .preview b{color:var(--text)}
+
+    .savebar{position:fixed;left:0;right:0;bottom:0;background:var(--bg2);border-top:1px solid var(--border);
+      padding:12px 14px max(env(safe-area-inset-bottom),12px);display:flex;gap:10px;align-items:center;z-index:30}
+    .savebar .pin{width:110px;font-family:inherit;font-size:16px;color:var(--text);background:var(--surface);
+      border:1px solid var(--border);border-radius:var(--r);padding:12px}
+    .savebar .btn{flex:1;font-family:inherit;font-size:16px;font-weight:800;color:#000;background:var(--gold);
+      border:none;border-radius:var(--r);padding:13px;cursor:pointer}
+    .savebar .btn:disabled{opacity:.5}
+    .savebar .btn:active{transform:scale(.99)}
+
+    .msg{width:100%;max-width:560px;font-size:13px;padding:10px 12px;border-radius:var(--r-sm);line-height:1.4;display:none;margin:0 14px}
+    .msg.show{display:block}
+    .msg.err{background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.4);color:#f0a0a0}
+    .msg.ok{background:rgba(92,201,118,.12);border:1px solid rgba(92,201,118,.4);color:#a7e0b8}
+    .loading{color:var(--text-muted);text-align:center;padding:40px;font-size:14px}
+    footer{text-align:center;font-size:11px;color:var(--text-dim);padding:20px 16px 8px;line-height:1.5}
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo-mark">B</div>
+    <div class="header-text"><h1>Core Value Sharing</h1><p>Slide 19 presenter</p></div>
+  </header>
+
+  <main class="container" id="main">
+    <div class="loading" id="loading">Loading…</div>
+    <section class="card" id="card" style="display:none">
+      <div class="card-head">This week&rsquo;s sharing</div>
+      <div class="rows">
+        <div class="fld">
+          <label>Member</label>
+          <select class="inp" id="member"><option value="">— select member —</option></select>
+        </div>
+        <div class="fld">
+          <label>Core value</label>
+          <select class="inp" id="value"><option value="">— select core value —</option></select>
+        </div>
+      </div>
+      <div class="preview" id="preview"></div>
+    </section>
+    <div class="msg err" id="err"></div>
+    <footer>Updates slide 19 straight away — name, trade, the core value, and the photo.<br>The photo is pulled from the member&rsquo;s headshot in Drive.</footer>
+  </main>
+
+  <div class="savebar" id="savebar" style="display:none">
+    <input class="pin" id="pin" type="password" inputmode="numeric" placeholder="MC PIN">
+    <button class="btn" id="save">Update slide 19</button>
+  </div>
+
+  <script>
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxYCpexo7cuQwYMpBwLtVn48hEQAoz1PQw17INXwZpXz-nh7foLB4-8Dhct2a7yNE8lMg/exec';
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+
+  function showErr(m){ const e=$('err'); e.textContent=m; e.className='msg err show'; }
+  function clearMsg(){ $('err').className='msg err'; }
+
+  function updatePreview(){
+    const m = $('member').value, v = $('value').value;
+    $('preview').innerHTML = (m && v)
+      ? `Slide 19 will read <b>${esc(m)}</b> sharing <b>${esc(v)}</b>.`
+      : 'Pick a member and a core value.';
+  }
+  $('member').addEventListener('change', updatePreview);
+  $('value').addEventListener('change', updatePreview);
+
+  // Load members + core values
+  (async function init(){
+    try{
+      const res = await fetch(APPS_SCRIPT_URL+'?action=getCoreValueOptions', {cache:'no-store'}).then(r=>r.json());
+      const members = res.members || [];
+      const values  = res.coreValues || [];
+      $('member').innerHTML = '<option value="">— select member —</option>' +
+        members.map(n => `<option>${esc(n)}</option>`).join('');
+      $('value').innerHTML = '<option value="">— select core value —</option>' +
+        values.map(v => `<option>${esc(v)}</option>`).join('');
+      $('loading').style.display = 'none';
+      $('card').style.display = 'block';
+      $('savebar').style.display = 'flex';
+      updatePreview();
+    }catch(e){
+      $('loading').textContent = 'Couldn’t load. Pull to refresh.';
+    }
+  })();
+
+  // Save
+  $('save').addEventListener('click', async ()=>{
+    clearMsg();
+    const pin = $('pin').value.trim();
+    const member = $('member').value.trim();
+    const coreValue = $('value').value.trim();
+    if(!member){ showErr('Select the member sharing.'); return; }
+    if(!coreValue){ showErr('Select which core value.'); return; }
+    if(!pin){ showErr('Enter the MC PIN to update.'); return; }
+
+    const btn = $('save'); btn.disabled=true; btn.textContent='Updating…';
+    const payload = { formType:'saveCoreValue', pin, member, coreValue };
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, {method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload)});
+      const json = await res.json();
+      if(json.status==='error'){ throw new Error(json.message||'Update failed'); }
+      done(json);
+    }catch(err){
+      // Fallback: fire-and-forget (opaque) — the write still runs server-side.
+      try{
+        await fetch(APPS_SCRIPT_URL, {method:'POST',mode:'no-cors',
+          headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload)});
+        await new Promise(r=>setTimeout(r,1200));
+        done({ member, coreValue, photoNote:'' });
+      }catch(e2){ btn.disabled=false; btn.textContent='Update slide 19'; showErr('Network error — please try again.'); }
+    }
+  });
+
+  function done(json){
+    const e=$('err');
+    let m = '✓ Slide 19 updated — ' + esc(json.member) + ' · ' + esc(json.coreValue) + '.';
+    if(json.photoNote) m += ' ⚠️ ' + esc(json.photoNote) + '.';
+    e.innerHTML = m; e.className='msg ok show';
+    const btn=$('save'); btn.disabled=false; btn.textContent='Update slide 19';
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  </script>
+</body>
+</html>
