@@ -124,6 +124,9 @@ function doGet(e) {
                                             ? jsonOk_(applySupportAttendance_(
                                                 String(e.parameter.absent || '').split(',').map(s => s.trim()).filter(Boolean)))
                                             : jsonErr_('Invalid PIN');
+  if (action === 'runWeeklyUpdate')      return (e.parameter.pin === ADMIN_PIN)
+                                            ? jsonOk_(runWeeklyUpdate_())
+                                            : jsonErr_('Invalid PIN');
 
   const response = {
     status:    'ok',
@@ -2390,11 +2393,36 @@ function restoreAllSlides() {
  */
 function weeklySundayTrigger() {
   Logger.log('=== weeklySundayTrigger START ===');
-  restoreAllSlides();
-  Utilities.sleep(2000);  // brief pause to ensure restore completes
-  updateSlidesFromAttendance();
-  try { updateTitleDate_(); } catch (e) { Logger.log('updateTitleDate_ error: ' + e.message); }
+  runWeeklyUpdate_();
   Logger.log('=== weeklySundayTrigger END ===');
+}
+
+// Headless weekly slide update — the web-callable twin of the menu item, so the
+// whole flow can be run and verified without the Sheet UI. Reads the current
+// submissions, hides members who said "no" from the Support Leadership pages,
+// moves truly-absent members' 30-sec slides to the end, and sets the title date.
+// Idempotent: re-running lays everything out from the same inputs.
+function runWeeklyUpdate_() {
+  const attendance  = getWeeklyAttendance_();
+  const absentNames = [];
+  const trulyAbsent = new Set();
+  Object.entries(attendance).forEach(([norm, info]) => {
+    if (info.attending !== 'no') return;
+    absentNames.push(info.originalName || norm);
+    if (!info.hasSub) trulyAbsent.add(norm);
+  });
+
+  const support = applySupportAttendance_(absentNames);
+  try { updateIntroSlides_(trulyAbsent); } catch (e) { logError_('runWeeklyUpdate_/intro', e); }
+  const title = updateTitleDate_();
+
+  return {
+    submissions:      Object.keys(attendance).length,
+    absent:           absentNames,
+    introsMovedToEnd: [...trulyAbsent],
+    support:          support,
+    titleDate:        title.date,
+  };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
