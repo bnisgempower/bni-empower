@@ -1136,16 +1136,21 @@ const ROLES_SEED = [
   ['Support Leadership',   'Tech Coordinator',        'Lee Jia Zheng'],
 ];
 
-// Build member name → trade from Active_Members (col B name, col J trade category).
+// Build member name → trade from Active_Members. Keyed by BOTH the full name
+// (col B) AND first+surname (cols C+D), since a member is sometimes named one
+// way in the roster and another in col B — either lookup then finds the trade.
 function tradeByMember_() {
   const ss = SpreadsheetApp.openById(SHEET_ID);
   const am = ss.getSheetByName(SN.ACTIVE_MEMBERS);
   const map = {};
   if (am && am.getLastRow() > 1) {
     am.getRange(2, 2, am.getLastRow() - 1, 9).getValues().forEach(r => { // B..J
-      const name  = String(r[0]).trim().toLowerCase();
-      const trade = String(r[8]).trim();
-      if (name) map[name] = trade;
+      const full    = String(r[0]).trim().toLowerCase();               // B: Member Full Name
+      const cd      = (String(r[1]).trim() + ' ' + String(r[2]).trim()).trim().toLowerCase(); // C+D
+      const trade   = String(r[8]).trim();                             // J: Trade Category
+      if (!trade) return;
+      if (full) map[full] = trade;
+      if (cd)   map[cd]   = trade;
     });
   }
   return map;
@@ -1771,9 +1776,21 @@ function updateMeetingDate() {
 const CORE_VALUE_SLIDE     = 'g3e794ddfa92_1_0';   // slide 19
 const CORE_VALUE_NAME_BOX  = 'g3e794ddfa92_1_4';   // "Name\nTrade"
 const CORE_VALUE_QUOTE_BOX = 'g3e794ddfa92_1_5';   // centre box → the core value
-const CORE_VALUE_PHOTO     = 'g3f56d718e25_0_28';  // presenter photo
+// The photo's objectId is NOT fixed — swapping the image manually changes it —
+// so it's looked up at run-time (firstImageOnPage_) rather than hardcoded.
 const CORE_VALUES = ['Givers Gain', 'Lifelong Learning', 'Traditions + Innovation',
                      'Positive Attitude', 'Building Relationships', 'Accountability', 'Recognition'];
+
+// The objectId of the (single) image on a page — robust to manual photo swaps,
+// which re-mint the objectId.
+function firstImageOnPage_(slideId) {
+  const url  = 'https://slides.googleapis.com/v1/presentations/' + PRESENTATION_ID +
+               '/pages/' + slideId + '?fields=' + encodeURIComponent('pageElements(objectId,image(contentUrl))');
+  const resp = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+  if (resp.getResponseCode() !== 200) return null;
+  const el = (JSON.parse(resp.getContentText()).pageElements || []).find(e => e.image);
+  return el ? el.objectId : null;
+}
 
 // Replace a box's lines in place, keeping each line's own styling. newLines[i]
 // replaces the i-th line; a blank/identical new line is skipped (old kept).
@@ -1844,12 +1861,15 @@ function saveCoreValue_(data) {
   const textCode = reqs.length ? slidesBatchUpdate_(reqs) : 200;
 
   let photoCode = null, photoNote = '';
-  const fileId = findHeadshotFileId_(member);
-  if (fileId) {
+  const fileId  = findHeadshotFileId_(member);
+  const photoId = firstImageOnPage_(CORE_VALUE_SLIDE);
+  if (fileId && photoId) {
     photoCode = slidesBatchUpdate_([{ replaceImage: {
-      imageObjectId: CORE_VALUE_PHOTO, url: shareAndThumbUrl_(fileId), imageReplaceMethod: 'CENTER_CROP' } }]);
-  } else {
+      imageObjectId: photoId, url: shareAndThumbUrl_(fileId), imageReplaceMethod: 'CENTER_CROP' } }]);
+  } else if (!fileId) {
     photoNote = 'no headshot in Drive for "' + member + '" — photo left unchanged';
+  } else {
+    photoNote = 'no image found on slide 19 — photo left unchanged';
   }
 
   return { ok: true, member, trade, coreValue, textCode, photoCode, photoNote };
