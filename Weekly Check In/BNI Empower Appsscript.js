@@ -2074,9 +2074,13 @@ function sendMissingEmail_(missing) {
 // ── SLIDE AUTOMATION MODULE ───────────────────────────────────────────────────
 // ═════════════════════════════════════════════════════════════════════════════
 //
-// RULES:
+// RULES (confirmed by the President):
 //   • Leadership Team slides (President, VP, Sec-Treas) — NEVER modified.
 //     They always show regardless of attendance.
+//   • Membership Committee (slide 11) and Visitor Host (slide 13) — ALWAYS show
+//     every member. These are standing teams: the slide names who HOLDS the
+//     role, not who's in the room, so attendance never hides anyone here.
+//     (Do NOT wire the reflowGridTeam_/COMMITTEE reflow into the weekly run.)
 //   • Support Leadership pages (slide 14 + its generated page 2) — absent
 //     members (even with a sub) are moved off-screen and the remaining members
 //     re-flow into a tighter row:
