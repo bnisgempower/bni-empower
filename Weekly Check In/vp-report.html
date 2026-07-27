@@ -30,28 +30,30 @@
     .sec-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;
       color:var(--text-muted);padding:0 2px 2px;display:flex;align-items:center;gap:8px}
     .sec-title::after{content:'';flex:1;height:1px;background:var(--border)}
+    .hint{font-size:12.5px;color:var(--text-muted);line-height:1.5;padding:0 2px 12px}
 
-    .totals-card{background:linear-gradient(160deg,var(--surface),var(--bg2));border:1px solid var(--gold-border);
-      border-radius:var(--r-lg);padding:16px 18px;position:relative;overflow:hidden}
-    .totals-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
-      background:linear-gradient(90deg,var(--gold),var(--gold-bright))}
-    .totals-card h2{font-size:14px;font-weight:800}
-    .totals-card .sub{font-size:12px;color:var(--text-muted);margin-bottom:12px}
-    .stat-row{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-top:1px solid var(--border)}
-    .stat-row:first-of-type{border-top:0}
-    .stat-label{font-size:13px;color:var(--text-muted)}
-    .stat-val{font-size:18px;font-weight:800;letter-spacing:-.3px}
-    .stat-new{font-size:12px;color:var(--success);font-weight:700;margin-left:8px}
+    .stat{background:linear-gradient(160deg,var(--surface),var(--bg2));border:1px solid var(--border);
+      border-radius:var(--r-lg);padding:14px 14px 12px;margin-bottom:12px}
+    .stat-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+    .stat-name{font-size:14px;font-weight:800}
+    .stat-new{font-size:13px;font-weight:800;color:var(--success);letter-spacing:-.2px}
+    .stat-new .lab{font-size:11px;font-weight:600;color:var(--text-muted);margin-right:4px;letter-spacing:.3px}
+    .stat-fields{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:end}
+    .ff label{display:block;font-size:10.5px;color:var(--text-muted);text-transform:uppercase;
+      letter-spacing:.5px;font-weight:600;margin:0 2px 5px}
+    .input{width:100%;font-family:inherit;font-size:17px;font-weight:700;color:var(--text);background:var(--bg2);
+      border:1px solid var(--border);border-radius:var(--r);padding:12px}
+    .input:focus{outline:none;border-color:var(--gold-border);background:var(--surface)}
+    .input::placeholder{color:var(--text-dim);font-weight:400}
+    .input.wk{color:var(--gold-bright)}
+    .plus{align-self:center;color:var(--text-muted);font-size:18px;font-weight:800;padding-bottom:10px}
+    .money-wrap{position:relative}
+    .money-wrap .cur{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:17px;font-weight:700}
+    .money-wrap .input{padding-left:26px}
 
     label.fld{display:block;font-size:13px;font-weight:600;color:var(--text-muted);margin:0 2px 6px}
-    .input{width:100%;font-family:inherit;font-size:17px;color:var(--text);background:var(--bg2);
-      border:1px solid var(--border);border-radius:var(--r);padding:14px}
-    .input:focus{outline:none;border-color:var(--gold-border);background:var(--surface)}
-    .input::placeholder{color:var(--text-dim)}
     .field{margin-bottom:14px}
-    .money-wrap{position:relative}
-    .money-wrap .cur{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:17px;font-weight:600}
-    .money-wrap .input{padding-left:30px}
+    .field .input{font-weight:400}
 
     .btn{width:100%;font-family:inherit;font-size:17px;font-weight:800;color:#000;background:var(--gold);
       border:none;border-radius:var(--r-lg);padding:17px;cursor:pointer;letter-spacing:-.2px;
@@ -61,10 +63,8 @@
     .msg{font-size:13px;padding:10px 12px;border-radius:var(--r-sm);line-height:1.4;display:none}
     .msg.err{display:block;background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.4);color:#f0a0a0}
 
-    .skel{height:18px;border-radius:6px;background:var(--surface2);animation:pulse 1.3s ease-in-out infinite;width:70px}
-    @keyframes pulse{0%,100%{opacity:.4}50%{opacity:.9}}
+    .loading{color:var(--text-muted);text-align:center;padding:30px;font-size:14px}
 
-    /* success */
     .success{display:none;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:36px 8px}
     .success.show{display:flex}
     .success .tick{width:72px;height:72px;border-radius:50%;background:var(--gold-dim);border:2px solid var(--success);
@@ -72,7 +72,12 @@
     .success .tick svg{width:36px;height:36px;stroke:var(--success)}
     .success h2{font-size:22px;font-weight:800}
     .success p{font-size:14px;color:var(--text-muted);max-width:320px;line-height:1.5}
-    .success .newtotals{margin-top:12px;width:100%;max-width:340px}
+    .success .newtotals{margin-top:12px;width:100%;max-width:340px;background:var(--surface);
+      border:1px solid var(--gold-border);border-radius:var(--r-lg);padding:14px 16px}
+    .success .stat-row{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-top:1px solid var(--border)}
+    .success .stat-row:first-child{border-top:0}
+    .success .stat-label{font-size:13px;color:var(--text-muted)}
+    .success .stat-val{font-size:18px;font-weight:800;letter-spacing:-.3px}
     footer{text-align:center;font-size:11px;color:var(--text-dim);padding:26px 16px 8px;line-height:1.6}
   </style>
 </head>
@@ -83,31 +88,10 @@
   </header>
 
   <main class="container" id="main">
-    <!-- Current totals -->
     <section>
-      <div class="sec-title">Current Totals · Since Launch</div>
-      <div class="totals-card">
-        <div class="stat-row"><span class="stat-label">Referrals Passed</span><span><span class="stat-val" id="tRef"><span class="skel"></span></span><span class="stat-new" id="nRef"></span></span></div>
-        <div class="stat-row"><span class="stat-label">Visitors Invited</span><span><span class="stat-val" id="tVis"><span class="skel"></span></span><span class="stat-new" id="nVis"></span></span></div>
-        <div class="stat-row"><span class="stat-label">Business Done</span><span><span class="stat-val" id="tBiz"><span class="skel"></span></span><span class="stat-new" id="nBiz"></span></span></div>
-      </div>
-    </section>
-
-    <!-- This week's entry -->
-    <section>
-      <div class="sec-title">Add This Week</div>
-      <div class="field">
-        <label class="fld" for="ref">Referrals passed this week</label>
-        <input class="input" id="ref" type="text" inputmode="numeric" placeholder="e.g. 12" autocomplete="off">
-      </div>
-      <div class="field">
-        <label class="fld" for="vis">Visitors invited this week</label>
-        <input class="input" id="vis" type="text" inputmode="numeric" placeholder="e.g. 3" autocomplete="off">
-      </div>
-      <div class="field">
-        <label class="fld" for="biz">Business done this week (SGD)</label>
-        <div class="money-wrap"><span class="cur">$</span><input class="input" id="biz" type="text" inputmode="numeric" placeholder="e.g. 8,500" autocomplete="off"></div>
-      </div>
+      <div class="sec-title">Since Launch Totals</div>
+      <p class="hint">Each total is read live from the stats slide. Correct a total directly, or type this week&rsquo;s number in <b>+ This week</b> to add on — the new total updates as you go.</p>
+      <div id="stats"><div class="loading">Loading current totals…</div></div>
     </section>
 
     <section>
@@ -117,32 +101,35 @@
         <input class="input" id="pin" type="password" inputmode="numeric" placeholder="••••" autocomplete="off">
       </div>
       <div class="msg err" id="err"></div>
-      <button class="btn" id="submit">Update slide &amp; save</button>
+      <button class="btn" id="submit" disabled>Update slide &amp; save</button>
     </section>
 
-    <footer>Updates Slide 98 “Since Launch” totals automatically.<br>The VP never needs to open the slides.</footer>
+    <footer>Updates the &ldquo;Since Launch&rdquo; totals on the stats slide automatically.<br>The VP never needs to open the slides.</footer>
   </main>
 
-  <!-- Success -->
   <div class="container success" id="success">
     <div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
     <h2>Report submitted ✓</h2>
-    <p>Slide 98 has been updated with the new running totals.</p>
-    <div class="totals-card newtotals">
-      <div class="stat-row"><span class="stat-label">Referrals Passed</span><span class="stat-val" id="sRef">–</span></div>
-      <div class="stat-row"><span class="stat-label">Visitors Invited</span><span class="stat-val" id="sVis">–</span></div>
-      <div class="stat-row"><span class="stat-label">Business Done</span><span class="stat-val" id="sBiz">–</span></div>
-    </div>
+    <p>The stats slide now shows the new running totals.</p>
+    <div class="newtotals" id="newtotals"></div>
   </div>
 
   <script>
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxYCpexo7cuQwYMpBwLtVn48hEQAoz1PQw17INXwZpXz-nh7foLB4-8Dhct2a7yNE8lMg/exec';
+  // Mirrors STAT_FIELDS in the backend, in the same order.
+  const FIELDS = [
+    { key:'referrals',         label:'Referrals Passed',   money:false },
+    { key:'referralsReceived', label:'Referrals Received', money:false },
+    { key:'visitors',          label:'Visitors Invited',   money:false },
+    { key:'business',          label:'Business Done',      money:true  },
+  ];
 
-  const $ = id => document.getElementById(id);
+  const $  = id => document.getElementById(id);
   const toInt = s => { const n = parseFloat(String(s).replace(/[^0-9.]/g,'')); return isNaN(n)?0:Math.round(n); };
   const fmt   = n => Number(n||0).toLocaleString('en-US');
+  const money = (f,n) => (f.money?'$':'') + fmt(n);
 
-  let prev = null; // current running totals
+  let prev = null; // current totals from the slide
 
   // Meeting week (next Tuesday), same rule as check-in
   function calcWeekOf(){
@@ -153,81 +140,89 @@
     return `${DAYS[d.getDay()]}, ${String(d.getDate()).padStart(2,'0')} ${M[d.getMonth()]} ${d.getFullYear()}`;
   }
 
-  // Load current totals
-  (async function load(){
-    try{
-      const res  = await fetch(APPS_SCRIPT_URL+'?action=getCommitteeTotals',{cache:'no-store'});
-      const json = await res.json();
-      prev = json.totals || {referrals:0,visitors:0,business:0};
-      $('tRef').textContent = fmt(prev.referrals);
-      $('tVis').textContent = fmt(prev.visitors);
-      $('tBiz').textContent = '$'+fmt(prev.business);
-    }catch(e){
-      $('tRef').textContent = $('tVis').textContent = $('tBiz').textContent = '—';
-    }
-  })();
-
-  // Live preview of new totals as the VP types
-  function preview(){
-    if(!prev) return;
-    const r=toInt($('ref').value), v=toInt($('vis').value), b=toInt($('biz').value);
-    $('nRef').textContent = r? '→ '+fmt(prev.referrals+r) : '';
-    $('nVis').textContent = v? '→ '+fmt(prev.visitors+v)  : '';
-    $('nBiz').textContent = b? '→ $'+fmt(prev.business+b)  : '';
+  function statHtml(f){
+    const totInput = f.money
+      ? `<div class="money-wrap"><span class="cur">$</span><input class="input" id="tot_${f.key}" type="text" inputmode="numeric" autocomplete="off"></div>`
+      : `<input class="input" id="tot_${f.key}" type="text" inputmode="numeric" autocomplete="off">`;
+    return `<div class="stat">
+      <div class="stat-head">
+        <span class="stat-name">${f.label}</span>
+        <span class="stat-new"><span class="lab">NEW</span><span id="new_${f.key}">–</span></span>
+      </div>
+      <div class="stat-fields">
+        <div class="ff"><label>Total now</label>${totInput}</div>
+        <span class="plus">+</span>
+        <div class="ff"><label>This week</label><input class="input wk" id="wk_${f.key}" type="text" inputmode="numeric" placeholder="0" autocomplete="off"></div>
+      </div>
+    </div>`;
   }
-  ['ref','vis','biz'].forEach(id=>$(id).addEventListener('input',preview));
+
+  function newTotal(f){ return toInt($('tot_'+f.key).value) + toInt($('wk_'+f.key).value); }
+  function preview(){
+    FIELDS.forEach(f => { $('new_'+f.key).textContent = money(f, newTotal(f)); });
+  }
 
   function showErr(m){ const e=$('err'); e.textContent=m; e.classList.add('err'); }
   function clearErr(){ $('err').classList.remove('err'); $('err').textContent=''; }
 
+  // Load current totals from the slide, build the cards
+  (async function load(){
+    let totals = {};
+    try{
+      const json = await (await fetch(APPS_SCRIPT_URL+'?action=getCommitteeTotals',{cache:'no-store'})).json();
+      totals = json.totals || {};
+    }catch(e){}
+    prev = totals;
+    $('stats').innerHTML = FIELDS.map(statHtml).join('');
+    FIELDS.forEach(f=>{
+      $('tot_'+f.key).value = fmt(totals[f.key]||0);   // pre-fill editable total
+      $('tot_'+f.key).addEventListener('input', preview);
+      $('wk_'+f.key).addEventListener('input', preview);
+    });
+    preview();
+    $('submit').disabled = false;
+  })();
+
   $('submit').addEventListener('click', async ()=>{
     clearErr();
-    const pin=$('pin').value.trim();
-    const r=toInt($('ref').value), v=toInt($('vis').value), b=toInt($('biz').value);
+    const pin = $('pin').value.trim();
     if(!pin){ showErr('Enter the MC PIN.'); return; }
-    if(r===0 && v===0 && b===0){ showErr('Enter at least one number for this week.'); return; }
+
+    const finals = {};
+    const changed = FIELDS.some(f => { finals[f.key] = newTotal(f); return !prev || finals[f.key] !== (prev[f.key]||0); });
+    if(!changed){ showErr('Nothing has changed — edit a total or add this week’s number.'); return; }
+
+    const payload = { formType:'committeeReport', pin, weekOf:calcWeekOf(),
+      submittedBy:(localStorage.getItem('bni_member')||'') };
+    FIELDS.forEach(f=>{ payload[f.key] = toInt($('tot_'+f.key).value); payload[f.key+'Wk'] = toInt($('wk_'+f.key).value); });
 
     const btn=$('submit'); btn.disabled=true; btn.textContent='Updating…';
-    const payload={
-      formType:'committeeReport', pin,
-      referrals:r, visitors:v, business:b,
-      weekOf:calcWeekOf(),
-      submittedBy: (localStorage.getItem('bni_member')||'')
-    };
-
     let newTotals=null, pinError=false;
     try{
-      // Try a readable POST first (Apps Script returns JSON we can read)
-      const res=await fetch(APPS_SCRIPT_URL,{method:'POST',
-        headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload)});
-      const json=await res.json();
+      const json = await (await fetch(APPS_SCRIPT_URL,{method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload)})).json();
       if(json.status==='error'){ pinError=/pin/i.test(json.message||''); throw new Error(json.message); }
       newTotals=json.totals;
     }catch(err){
-      // Fallback: fire-and-forget write, then read totals back
       if(pinError){ btn.disabled=false; btn.textContent='Update slide & save'; showErr('Incorrect MC PIN.'); return; }
+      // Fallback: opaque POST (still writes server-side), then read totals back
       try{
         await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',
           headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload)});
         await new Promise(r=>setTimeout(r,1800));
         const t=await (await fetch(APPS_SCRIPT_URL+'?action=getCommitteeTotals',{cache:'no-store'})).json();
         newTotals=t.totals;
-        // If totals didn't move, the PIN was likely wrong
-        if(newTotals && prev && newTotals.referrals===prev.referrals && newTotals.visitors===prev.visitors && newTotals.business===prev.business){
-          btn.disabled=false; btn.textContent='Update slide & save';
-          showErr('Submission didn’t go through — check the MC PIN and try again.'); return;
-        }
-      }catch(e2){
-        btn.disabled=false; btn.textContent='Update slide & save';
-        showErr('Network error — please try again.'); return;
-      }
+        const moved = FIELDS.some(f => newTotals[f.key] === finals[f.key] && finals[f.key] !== (prev[f.key]||0));
+        if(!moved){ btn.disabled=false; btn.textContent='Update slide & save';
+          showErr('Submission didn’t go through — check the MC PIN and try again.'); return; }
+      }catch(e2){ btn.disabled=false; btn.textContent='Update slide & save';
+        showErr('Network error — please try again.'); return; }
     }
 
-    // Success
     if(newTotals){
-      $('sRef').textContent=fmt(newTotals.referrals);
-      $('sVis').textContent=fmt(newTotals.visitors);
-      $('sBiz').textContent='$'+fmt(newTotals.business);
+      $('newtotals').innerHTML = FIELDS.map(f =>
+        `<div class="stat-row"><span class="stat-label">${f.label}</span><span class="stat-val">${money(f,newTotals[f.key])}</span></div>`
+      ).join('');
     }
     $('main').style.display='none';
     $('success').classList.add('show');

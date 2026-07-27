@@ -704,38 +704,36 @@ function dumpSlides_(find, slideParam, rawMode) {
 // ── VP Committee Report → Slide 98 running totals ─────────────────────────────
 // The VP submits THIS WEEK's numbers from a phone form; they auto-add to the
 // "Since Launch" totals on Slide 98 and are logged in the Committee_Report sheet.
-const STAT_SLIDE_ID = 'g3d1b184308e_0_0';   // Slide 98 — "BNI Empower Statistics (Since Launch)"
-const STAT_BOX = {
-  referrals: 'g3d1b184308e_0_10',   // "332 Referrals Passed"
-  visitors:  'g3d1b184308e_0_11',   // "89 Visitors Invited"
-  business:  'g3d1b184308e_0_12',   // "$209,288 Business Done"
-};
-// Starting totals currently on the slide — used only when Committee_Report is empty.
-const STAT_SEED = { referrals: 332, visitors: 89, business: 209288 };
+const STAT_SLIDE_ID = 'g3d1b184308e_0_0';   // Stats slide — "BNI Empower Statistics (Since Launch)"
+// The running-total boxes on that slide, in display order. The SLIDE is the
+// single source of truth: each report reads the current number off the slide,
+// adds the week's delta, and writes it back — so a manual relaunch (just edit
+// the slide) carries forward and the totals can never drift out of sync.
+const STAT_FIELDS = [
+  { key: 'referrals',         id: 'g3d1b184308e_0_10', label: 'Referrals Passed',   money: false },
+  { key: 'referralsReceived', id: 'g3f96507da5f_0_0',  label: 'Referrals Received', money: false },
+  { key: 'visitors',          id: 'g3d1b184308e_0_11', label: 'Visitors Invited',   money: false },
+  { key: 'business',          id: 'g3d1b184308e_0_12', label: 'Business Done',       money: true  },
+];
+const statMoney_ = f => (f.money ? '$' : '');
 
 function fmtInt_(n) { return Number(n || 0).toLocaleString('en-US'); }
 
 function committeeDisplay_(t) {
-  return {
-    referrals: fmtInt_(t.referrals),
-    visitors:  fmtInt_(t.visitors),
-    business:  '$' + fmtInt_(t.business),
-  };
+  const d = {};
+  STAT_FIELDS.forEach(f => d[f.key] = statMoney_(f) + fmtInt_(t[f.key] || 0));
+  return d;
 }
 
-// Current running totals (last row of Committee_Report, else the seed).
+// Running totals — READ FROM THE SLIDE (the source of truth), not the log sheet.
 function getCommitteeTotals_() {
-  const ss    = SpreadsheetApp.openById(SHEET_ID);
-  const sheet = ss.getSheetByName(SN.COMMITTEE_REPORT);
-  if (sheet && sheet.getLastRow() >= 2) {
-    const last = sheet.getRange(sheet.getLastRow(), 6, 1, 3).getValues()[0]; // F,G,H
-    return {
-      referrals: Number(last[0]) || STAT_SEED.referrals,
-      visitors:  Number(last[1]) || STAT_SEED.visitors,
-      business:  Number(last[2]) || STAT_SEED.business,
-    };
-  }
-  return Object.assign({}, STAT_SEED);
+  const box = readStatBoxes_();
+  const t = {};
+  STAT_FIELDS.forEach(f => {
+    const m = String(box[f.id] || '').match(/\$?\d[\d,]*/);
+    t[f.key] = m ? parseInt(m[0].replace(/[^0-9]/g, ''), 10) : 0;
+  });
+  return t;
 }
 
 function getCommitteeTotalsAction_() {
@@ -743,46 +741,42 @@ function getCommitteeTotalsAction_() {
   return jsonOk_({ totals: t, display: committeeDisplay_(t) });
 }
 
-// Append this week's numbers, bump the totals, update the slide.
+// The VP form sends, per stat, the (possibly edited) current TOTAL plus a
+// weekly ADD. The new total = total + add. We set the slide to those absolute
+// values and log the submission. Missing fields default to 0, so an untouched
+// stat stays where it is.
 function writeCommitteeReport_(data) {
+  const num = v => { const n = parseFloat(String(v).replace(/[^0-9.]/g, '')); return isNaN(n) ? 0 : Math.round(n); };
+  const totals = {};
+  STAT_FIELDS.forEach(f => { totals[f.key] = num(data[f.key]) + num(data[f.key + 'Wk']); });
+
+  setStatSlideNumbers_(totals);
+  logCommitteeReport_(data, totals, num);
+  return totals;
+}
+
+// Append the submission to Committee_Report (a history log — the live totals
+// are on the slide). The header is (re)written so its columns track STAT_FIELDS.
+function logCommitteeReport_(data, totals, num) {
   const ss = SpreadsheetApp.openById(SHEET_ID);
   let sheet = ss.getSheetByName(SN.COMMITTEE_REPORT);
-  if (!sheet) {
-    sheet = ss.insertSheet(SN.COMMITTEE_REPORT);
-    sheet.getRange(1, 1, 1, 9)
-      .setValues([['Timestamp', 'Week Of', 'Referrals (wk)', 'Visitors (wk)', 'Business (wk)',
-                   'Referrals Total', 'Visitors Total', 'Business Total', 'Submitted By']])
-      .setFontWeight('bold').setBackground('#1a5276').setFontColor('#ffffff');
-    sheet.setFrozenRows(1);
-    [150, 150, 110, 110, 120, 120, 110, 130, 140].forEach((w, i) => sheet.setColumnWidth(i + 1, w));
-  }
+  if (!sheet) sheet = ss.insertSheet(SN.COMMITTEE_REPORT);
+
+  const header = ['Timestamp', 'Week Of']
+    .concat(STAT_FIELDS.map(f => f.label + ' (wk)'))
+    .concat(STAT_FIELDS.map(f => f.label + ' Total'))
+    .concat(['Submitted By']);
+  sheet.getRange(1, 1, 1, header.length).setValues([header])
+    .setFontWeight('bold').setBackground('#1a5276').setFontColor('#ffffff');
+  sheet.setFrozenRows(1);
 
   const tz = Session.getScriptTimeZone();
   const ts = Utilities.formatDate(new Date(), tz, "yyyy-MM-dd'T'HH:mm:ss");
-
-  const num = v => { const n = parseFloat(String(v).replace(/[^0-9.]/g, '')); return isNaN(n) ? 0 : n; };
-  const wk = {
-    referrals: Math.round(num(data.referrals)),
-    visitors:  Math.round(num(data.visitors)),
-    business:  Math.round(num(data.business)),
-  };
-
-  const prev = getCommitteeTotals_();
-  const next = {
-    referrals: prev.referrals + wk.referrals,
-    visitors:  prev.visitors  + wk.visitors,
-    business:  prev.business  + wk.business,
-  };
-
-  sheet.appendRow([
-    ts, data.weekOf || '',
-    wk.referrals, wk.visitors, wk.business,
-    next.referrals, next.visitors, next.business,
-    data.submittedBy || '',
-  ]);
-
-  updateStatSlideNumbers_(next);
-  return next;
+  const row = [ts, data.weekOf || '']
+    .concat(STAT_FIELDS.map(f => num(data[f.key + 'Wk'])))
+    .concat(STAT_FIELDS.map(f => totals[f.key]))
+    .concat([data.submittedBy || '']);
+  sheet.appendRow(row);
 }
 
 // Reads the current text of the 3 stat boxes on the stats slide → { boxId: text }.
@@ -810,48 +804,24 @@ function readStatBoxes_() {
   return byId;
 }
 
-// Self-healing: reads whatever number is currently in each box and overwrites
-// just that number with the new total. Targets each box by its own objectId,
-// so a manual slide edit is corrected on the next submit — and boxes never
-// interfere with each other. Number styling is preserved (we replace the
-// number in place, leaving the label untouched).
-function updateStatSlideNumbers_(next) {
+// Set each stat box to its absolute total. Self-healing: it replaces just the
+// number token in place (styling preserved, label untouched) and skips a box
+// that's already correct. Each box is targeted by its own objectId.
+function setStatSlideNumbers_(totals) {
   const boxText = readStatBoxes_();
-  const plan = [
-    { id: STAT_BOX.referrals, neu: fmtInt_(next.referrals) },
-    { id: STAT_BOX.visitors,  neu: fmtInt_(next.visitors) },
-    { id: STAT_BOX.business,  neu: '$' + fmtInt_(next.business) },
-  ];
-
   const requests = [];
-  plan.forEach(p => {
-    const text = String(boxText[p.id] || '');
+  STAT_FIELDS.forEach(f => {
+    const text = String(boxText[f.id] || '');
     const m = text.match(/\$?\d[\d,]*/);   // first number token in the box
-    if (!m) { logError_('updateStatSlideNumbers_', new Error('no number in box ' + p.id)); return; }
-    const oldTok = m[0];
-    const start  = m.index;
-    if (oldTok === p.neu) return;           // already correct — nothing to do
-    // Insert the new number, then delete the old one (keeps the number's styling).
-    requests.push({ insertText: { objectId: p.id, insertionIndex: start, text: p.neu } });
-    requests.push({ deleteText: { objectId: p.id, textRange: {
-      type: 'FIXED_RANGE',
-      startIndex: start + p.neu.length,
-      endIndex:   start + p.neu.length + oldTok.length,
-    } } });
+    if (!m) { logError_('setStatSlideNumbers_', new Error('no number in box ' + f.id)); return; }
+    const oldTok = m[0], start = m.index;
+    const neu = statMoney_(f) + fmtInt_(totals[f.key] || 0);
+    if (oldTok === neu) return;             // already correct — nothing to do
+    requests.push({ insertText: { objectId: f.id, insertionIndex: start, text: neu } });
+    requests.push({ deleteText: { objectId: f.id, textRange: {
+      type: 'FIXED_RANGE', startIndex: start + neu.length, endIndex: start + neu.length + oldTok.length } } });
   });
-  if (!requests.length) return;
-
-  const url  = 'https://slides.googleapis.com/v1/presentations/' + PRESENTATION_ID + ':batchUpdate';
-  const resp = UrlFetchApp.fetch(url, {
-    method:      'post',
-    contentType: 'application/json',
-    headers:     { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
-    payload:     JSON.stringify({ requests }),
-    muteHttpExceptions: true,
-  });
-  if (resp.getResponseCode() !== 200) {
-    logError_('updateStatSlideNumbers_', new Error(resp.getContentText().slice(0, 300)));
-  }
+  if (requests.length) slidesBatchUpdate_(requests);
 }
 
 // ── Weekly "Next Presenter" chain (slides 62–91) ──────────────────────────────
