@@ -747,8 +747,15 @@ function getCommitteeTotalsAction_() {
 // stat stays where it is.
 function writeCommitteeReport_(data) {
   const num = v => { const n = parseFloat(String(v).replace(/[^0-9.]/g, '')); return isNaN(n) ? 0 : Math.round(n); };
+  const cur = getCommitteeTotals_();   // current slide values, as a safe fallback
   const totals = {};
-  STAT_FIELDS.forEach(f => { totals[f.key] = num(data[f.key]) + num(data[f.key + 'Wk']); });
+  STAT_FIELDS.forEach(f => {
+    // Money-safety: if a total field is omitted from the POST, keep the slide's
+    // current value rather than treating it as 0 (which would wipe the box).
+    const hasTotal = data[f.key] !== undefined && String(data[f.key]).trim() !== '';
+    const base = hasTotal ? num(data[f.key]) : (cur[f.key] || 0);
+    totals[f.key] = base + num(data[f.key + 'Wk']);
+  });
 
   setStatSlideNumbers_(totals);
   logCommitteeReport_(data, totals, num);
